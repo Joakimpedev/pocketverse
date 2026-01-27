@@ -1,0 +1,26 @@
+{
+  "name": "pocketverse-backend",
+  "version": "1.0.0",
+  "description": "Backend API for PocketVerse - OpenAI proxy",
+  "main": "api/get-verse.js",
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel --prod"
+  },
+  "dependencies": {
+    "openai": "^6.16.0"
+  },
+  "devDependencies": {
+    "vercel": "^38.0.0"
+  }
+}
+
+
+
+
+
+
+
+
+
+

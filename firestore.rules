@@ -1,0 +1,29 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users can only read/write their own user document
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      
+      // Users can only read/write their own savedVerses
+      match /savedVerses/{verseId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+    
+    // Feedback collection - authenticated users can create, only admins can read
+    match /feedback/{feedbackId} {
+      // Any authenticated user can submit feedback
+      allow create: if request.auth != null 
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.feedback is string
+        && request.resource.data.feedback.size() > 0
+        && request.resource.data.feedback.size() <= 5000;
+      
+      // Users cannot read, update, or delete feedback (admin only via Firebase Console)
+      allow read, update, delete: if false;
+    }
+  }
+}
+
+
