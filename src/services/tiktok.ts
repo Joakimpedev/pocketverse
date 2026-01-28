@@ -1,243 +1,296 @@
-/**
- * TikTok SDK Integration Service
- * 
- * ============================================================================
- * DEVELOPER GUIDE - READ THIS FIRST
- * ============================================================================
- * 
- * This file contains all TikTok SDK integration code. All trigger events
- * are already wired up in the app - you just need to implement the SDK calls
- * in the function bodies below.
- * 
- * SETUP STEPS:
- * 1. Install TikTok SDK package:
- *    npm install @tiktok/tiktok-pixel  (or whatever the package name is)
- * 
- * 2. Import the TikTok SDK at the top of this file (see import section below)
- * 
- * 3. Fill in each function body with the actual TikTok SDK calls
- *    - Each function has comments explaining what it should do
- *    - Use the same event names as shown in the comments (with "Pocketverse:" prefix)
- *    - Pass the provided parameters to the TikTok SDK
- * 
- * 4. Add your API key/credentials to: src/config/tiktok.config.ts
- * 
- * 5. Test that events are firing in TikTok Events Manager
- * 
- * ============================================================================
- * IMPORT SECTION - Add TikTok SDK import here
- * ============================================================================
- */
+import { Platform } from "react-native";
+import {
+  TikTokBusiness,
+  TikTokContentEventName,
+  TikTokContentEventParameter,
+  TikTokEventName,
+} from "react-native-tiktok-business-sdk";
+import { tiktokConfig } from "../config/tiktok.config";
 
-// TODO: Import TikTok SDK here
-// Example: import TikTokPixel from '@tiktok/tiktok-pixel';
-// Example: import { TikTokPixel } from 'react-native-tiktok-pixel';
+let isSDKInitialized = false;
+const debug = false;
 
-import { tiktokConfig } from '../config/tiktok.config';
+let attPermissionRequested = false;
+let attPermissionStatus: string | null = null;
 
-/**
- * ============================================================================
- * INITIALIZATION
- * ============================================================================
- */
+export async function requestTrackingPermission(): Promise<string | null> {
+  if (Platform.OS !== "ios") {
+    return "granted"; // Android doesn't require ATT
+  }
 
-/**
- * Initialize TikTok SDK
- * 
- * Called when the app starts (in app/_layout.tsx)
- * 
- * DEVELOPER: Implement TikTok SDK initialization here
- * - Initialize the SDK with your API key from tiktokConfig
- * - Set up any required configuration
- * - Handle initialization errors gracefully
- * 
- * @example
- * await TikTokPixel.init(tiktokConfig.apiKey);
- */
-export const initializeTikTok = async (): Promise<void> => {
-  // TODO: Initialize TikTok SDK here
-  // Example implementation:
-  // if (!tiktokConfig.apiKey) {
-  //   console.warn('TikTok API key not configured');
-  //   return;
-  // }
-  // await TikTokPixel.init(tiktokConfig.apiKey);
-};
+  if (attPermissionRequested && attPermissionStatus !== null) {
+    return attPermissionStatus;
+  }
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const TrackingTransparency = require("expo-tracking-transparency");
+
+    if (
+      !TrackingTransparency ||
+      !TrackingTransparency.requestTrackingPermissionsAsync
+    ) {
+      console.warn("[TikTok] requestTrackingPermissionsAsync not available");
+      return null;
+    }
+
+    const { status: currentStatus } =
+      await TrackingTransparency.getTrackingPermissionsAsync();
+
+    if (currentStatus === "granted" || currentStatus === "denied") {
+      attPermissionRequested = true;
+      attPermissionStatus = currentStatus;
+      return currentStatus;
+    }
+
+    const { status } =
+      await TrackingTransparency.requestTrackingPermissionsAsync();
+    attPermissionRequested = true;
+    attPermissionStatus = status;
+
+    return status;
+  } catch (error: any) {
+    console.warn(
+      "[TikTok] ⚠️ Failed to request tracking permission:",
+      error?.message,
+    );
+    return null;
+  }
+}
 
 /**
- * ============================================================================
- * USER MANAGEMENT
- * ============================================================================
+ * Initialize TikTok tracking
+ * Initializes the SDK with your App ID and Access Token
  */
+export async function initTikTok(): Promise<void> {
+  if (Platform.OS !== "ios") {
+    console.warn("[TikTok] SDK is iOS-only, skipping on", Platform.OS);
+    return;
+  }
+
+  if (isSDKInitialized) {
+    return;
+  }
+
+  try {
+    await TikTokBusiness.initializeSdk(
+      tiktokConfig.appId,
+      tiktokConfig.tiktokAppId,
+      tiktokConfig.tiktokAppSecret,
+      debug,
+    );
+    console.log("[TikTok] ~ initTikTok ~ initialized");
+    isSDKInitialized = true;
+  } catch (error: any) {
+    console.error(
+      "[TikTok] ❌ Failed to initialize SDK:",
+      error?.message,
+      error,
+    );
+    isSDKInitialized = true;
+  }
+}
+
+export async function trackCompleteRegistration(
+  registrationMethod: "email" | "google" | "apple",
+  userId?: string,
+): Promise<void> {
+  if (Platform.OS !== "ios") {
+    return;
+  }
+
+  if (!isSDKInitialized) {
+    await initTikTok();
+  }
+
+  try {
+    if (userId) {
+      await TikTokBusiness.identify(userId, userId, "", "");
+    }
+    await TikTokBusiness.trackEvent(TikTokEventName.REGISTRATION, undefined, {
+      registration_method: registrationMethod,
+    } as any);
+    await TikTokBusiness.flush().catch(() => {});
+  } catch (error: any) {
+    console.warn(
+      "[TikTok] ⚠️ Failed to track CompleteRegistration:",
+      error?.message,
+    );
+  }
+}
 
 /**
- * Identify a user in TikTok SDK
- * 
- * Called when a user signs in (in src/contexts/AuthContext.tsx)
- * 
- * DEVELOPER: Implement TikTok SDK user identification here
- * - Identify the user with their userId
- * - Pass any user properties (email, provider, etc.)
- * - This links events to a specific user
- * 
- * @param userId - Firebase user ID
- * @param properties - Optional user properties (email, provider, etc.)
- * 
- * @example
- * await TikTokPixel.identify(userId, {
- *   email: properties?.email,
- *   provider: properties?.provider,
- * });
+ * Track Subscribe event
+ * @param contentId - Product identifier
+ * @param currency - Currency code (e.g., 'USD')
+ * @param value - Numerical price value
+ * @param userId - Optional user ID
  */
-export const identifyUser = async (userId: string, properties?: Record<string, any>): Promise<void> => {
-  // TODO: Implement TikTok SDK user identification here
-  // Example implementation:
-  // await TikTokPixel.identify(userId, {
-  //   ...properties,
-  //   app_name: 'Pocketverse',
-  // });
-};
+export async function trackSubscribe(
+  contentId: string,
+  currency: string,
+  value: number,
+  userId?: string,
+): Promise<void> {
+  if (Platform.OS !== "ios") {
+    return;
+  }
+
+  if (!isSDKInitialized) {
+    await initTikTok();
+  }
+
+  try {
+    if (userId) {
+      await TikTokBusiness.identify(userId, userId, "", "");
+    }
+    await TikTokBusiness.trackEvent(TikTokEventName.SUBSCRIBE, undefined, {
+      content_id: contentId,
+      currency: currency,
+      value: String(value),
+    } as any);
+    await TikTokBusiness.flush().catch(() => {});
+  } catch (error: any) {
+    console.warn("[TikTok] ⚠️ Failed to track Subscribe:", error?.message);
+  }
+}
+
+export async function trackInitiateCheckout(
+  contentId: string,
+  currency: string,
+  value: number,
+  userId?: string,
+): Promise<void> {
+  if (Platform.OS !== "ios") {
+    return;
+  }
+
+  if (!isSDKInitialized) {
+    await initTikTok();
+  }
+
+  try {
+    if (userId) {
+      await TikTokBusiness.identify(userId, userId, "", "");
+    }
+    await TikTokBusiness.trackContentEvent(TikTokContentEventName.CHECK_OUT, {
+      [TikTokContentEventParameter.CONTENT_ID]: contentId,
+      [TikTokContentEventParameter.CURRENCY]: currency,
+      [TikTokContentEventParameter.VALUE]: String(value),
+    });
+    await TikTokBusiness.flush().catch(() => {});
+  } catch (error: any) {
+    console.warn(
+      "[TikTok] ⚠️ Failed to track InitiateCheckout:",
+      error?.message,
+    );
+  }
+}
 
 /**
- * Reset user identification in TikTok SDK
- * 
- * Called when a user signs out (in src/contexts/AuthContext.tsx)
- * 
- * DEVELOPER: Implement TikTok SDK user reset here
- * - Clear the current user identification
- * - Prepare for anonymous tracking or new user
- * 
- * @example
- * await TikTokPixel.reset();
+ * Generic event tracking function
+ * @param eventName - Event name
+ * @param eventParams - Event parameters
+ * @param userId - Optional user ID
  */
-export const resetUser = async (): Promise<void> => {
-  // TODO: Implement TikTok SDK user reset here
-  // Example implementation:
-  // await TikTokPixel.reset();
-};
+export async function trackEvent(
+  eventName: string,
+  eventParams: Record<string, any> = {},
+  userId?: string,
+): Promise<void> {
+  if (Platform.OS !== "ios") {
+    return;
+  }
 
-/**
- * ============================================================================
- * EVENT TRACKING
- * ============================================================================
- */
+  if (!isSDKInitialized) {
+    await initTikTok();
+  }
 
-/**
- * Track app opened event
- * 
- * Called when the app initializes (in app/_layout.tsx)
- * 
- * DEVELOPER: Implement TikTok SDK event tracking here
- * - Track the "Pocketverse: App Opened" event
- * - Include timestamp and any relevant properties
- * 
- * Event name: "Pocketverse: App Opened"
- * 
- * @example
- * await TikTokPixel.track('Pocketverse: App Opened', {
- *   timestamp: new Date().toISOString(),
- * });
- */
-export const trackAppOpened = async (): Promise<void> => {
-  // TODO: Implement TikTok SDK track event here
-  // Event name: "Pocketverse: App Opened"
-  // Example implementation:
-  // await TikTokPixel.track('Pocketverse: App Opened', {
-  //   timestamp: new Date().toISOString(),
-  //   app_name: 'Pocketverse',
-  // });
-};
+  try {
+    if (userId) {
+      await TikTokBusiness.identify(userId, userId, "", "");
+    }
 
-/**
- * Track user signed in event
- * 
- * Called when a user successfully signs in (in src/contexts/AuthContext.tsx)
- * 
- * DEVELOPER: Implement TikTok SDK event tracking here
- * - Track the "Pocketverse: Signed In" event
- * - Include the sign-in method (apple or email)
- * - Include timestamp
- * 
- * Event name: "Pocketverse: Signed In"
- * 
- * @param method - Sign-in method: 'apple' or 'email'
- * 
- * @example
- * await TikTokPixel.track('Pocketverse: Signed In', {
- *   sign_in_method: method,
- *   timestamp: new Date().toISOString(),
- * });
- */
-export const trackSignedIn = async (method: 'apple' | 'email'): Promise<void> => {
-  // TODO: Implement TikTok SDK track event here
-  // Event name: "Pocketverse: Signed In"
-  // Include: method parameter (apple or email)
-  // Example implementation:
-  // await TikTokPixel.track('Pocketverse: Signed In', {
-  //   sign_in_method: method,
-  //   timestamp: new Date().toISOString(),
-  //   app_name: 'Pocketverse',
-  // });
-};
+    switch (eventName) {
+      case "ViewContent":
+        await TikTokBusiness.trackContentEvent(
+          TikTokContentEventName.VIEW_CONTENT,
+          eventParams as any,
+        );
 
-/**
- * Track paywall viewed event
- * 
- * Called when the paywall screen is displayed (in app/paywall.tsx)
- * 
- * DEVELOPER: Implement TikTok SDK event tracking here
- * - Track the "Pocketverse: Seen Paywall" event
- * - Include timestamp
- * 
- * Event name: "Pocketverse: Seen Paywall"
- * 
- * @example
- * await TikTokPixel.track('Pocketverse: Seen Paywall', {
- *   timestamp: new Date().toISOString(),
- * });
- */
-export const trackSeenPaywall = async (): Promise<void> => {
-  // TODO: Implement TikTok SDK track event here
-  // Event name: "Pocketverse: Seen Paywall"
-  // Example implementation:
-  // await TikTokPixel.track('Pocketverse: Seen Paywall', {
-  //   timestamp: new Date().toISOString(),
-  //   app_name: 'Pocketverse',
-  // });
-};
+        await TikTokBusiness.flush().catch(() => {});
+        return;
+      case "LaunchApplication":
+        await TikTokBusiness.trackEvent(
+          TikTokEventName.LAUNCH_APP,
+          undefined,
+          eventParams as any,
+        );
+        console.log("[TikTok] LaunchApplication event called");
+        await TikTokBusiness.flush().catch(() => {});
+        return;
+      default:
+        // Use custom event for unmapped events
+        await TikTokBusiness.trackCustomEvent(eventName, eventParams || {});
+        try {
+          await TikTokBusiness.flush();
+        } catch (flushError: any) {
+          console.warn(
+            `[TikTok] ⚠️ Failed to flush events:`,
+            flushError?.message,
+          );
+        }
+        console.log(`[TikTok] ${eventName} event called : ${eventParams}`);
+        return;
+    }
+  } catch (error: any) {
+    console.error(
+      `[TikTok] ❌ Failed to track event ${eventName}:`,
+      error?.message,
+      error,
+    );
+  }
+}
 
-/**
- * Track purchase event
- * 
- * Called when a user becomes premium (in src/contexts/PremiumContext.tsx)
- * 
- * DEVELOPER: Implement TikTok SDK event tracking here
- * - Track the "Pocketverse: Purchased" event
- * - Include package ID and revenue if available
- * - Include timestamp
- * 
- * Event name: "Pocketverse: Purchased"
- * 
- * @param packageId - Optional package/subscription ID
- * @param revenue - Optional revenue amount
- * 
- * @example
- * await TikTokPixel.track('Pocketverse: Purchased', {
- *   package_id: packageId,
- *   revenue: revenue,
- *   timestamp: new Date().toISOString(),
- * });
- */
-export const trackPurchased = async (packageId?: string, revenue?: number): Promise<void> => {
-  // TODO: Implement TikTok SDK track event here
-  // Event name: "Pocketverse: Purchased"
-  // Include: packageId (optional), revenue (optional)
-  // Example implementation:
-  // await TikTokPixel.track('Pocketverse: Purchased', {
-  //   package_id: packageId,
-  //   revenue: revenue,
-  //   timestamp: new Date().toISOString(),
-  //   app_name: 'Pocketverse',
-  // });
-};
+export async function identifyUser(
+  userId: string,
+  _properties?: Record<string, any>,
+): Promise<void> {
+  if (Platform.OS !== "ios" || !userId) {
+    return;
+  }
+
+  if (!isSDKInitialized) {
+    await initTikTok();
+  }
+
+  try {
+    await TikTokBusiness.identify(userId, userId, "", "");
+  } catch (error: any) {
+    console.warn(
+      "[TikTok] ⚠️ Failed to identify user:",
+      error?.message,
+    );
+  }
+}
+
+export async function resetUser(): Promise<void> {
+  return;
+}
+
+export async function trackSignedIn(
+  method: "apple" | "email",
+): Promise<void> {
+  await trackEvent("SignIn", { method });
+}
+
+export async function trackSeenPaywall(): Promise<void> {
+  await trackEvent("SeenPaywall", {
+    screen: "paywall",
+  });
+}
+
+export async function trackPurchased(): Promise<void> {
+  await trackEvent("PurchasedPremium", {});
+}
 

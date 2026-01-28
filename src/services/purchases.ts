@@ -2,12 +2,15 @@ import Purchases, {
   PurchasesOffering,
   PurchasesPackage,
   CustomerInfo,
-} from 'react-native-purchases';
-import { Platform } from 'react-native';
-import { revenueCatConfig } from '../config/revenuecat.config';
+} from "react-native-purchases";
+import { Platform } from "react-native";
+import Constants from "expo-constants";
+import { revenueCatConfig } from "../config/revenuecat.config";
 
 // Track if RevenueCat is initialized
 let isInitialized = false;
+
+const isExpoGo = Constants.executionEnvironment === "storeClient";
 
 // Initialize RevenueCat
 export const initializePurchases = async (): Promise<void> => {
@@ -17,12 +20,15 @@ export const initializePurchases = async (): Promise<void> => {
   }
 
   try {
-    const apiKey =
-      Platform.OS === 'ios' ? revenueCatConfig.iosApiKey : revenueCatConfig.androidApiKey;
+    let apiKey: string | undefined;
 
+    apiKey =
+      Platform.OS === "ios"
+        ? revenueCatConfig.iosApiKey
+        : revenueCatConfig.androidApiKey;
     if (!apiKey) {
       console.warn(
-        'RevenueCat API key not configured. Please set EXPO_PUBLIC_REVENUECAT_IOS_API_KEY or EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY in your environment variables.'
+        "RevenueCat API key not configured. Please set EXPO_PUBLIC_REVENUECAT_IOS_API_KEY or EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY in your environment variables.",
       );
       return;
     }
@@ -31,7 +37,7 @@ export const initializePurchases = async (): Promise<void> => {
     isInitialized = true;
     console.log('RevenueCat initialized successfully');
   } catch (error: any) {
-    console.error('Error initializing RevenueCat:', error);
+    console.error("❌ Error initializing RevenueCat:", error);
     throw error;
   }
 };
@@ -49,7 +55,7 @@ export const setPurchasesUserId = async (userId: string): Promise<void> => {
   try {
     await Purchases.logIn(userId);
   } catch (error) {
-    console.error('Error setting RevenueCat user ID:', error);
+    console.error("Error setting RevenueCat user ID:", error);
     // Don't throw - allow app to continue
   }
 };
@@ -62,7 +68,7 @@ export const logoutPurchases = async (): Promise<void> => {
   try {
     await Purchases.logOut();
   } catch (error) {
-    console.error('Error logging out RevenueCat user:', error);
+    console.error("Error logging out RevenueCat user:", error);
     // Don't throw - allow app to continue
   }
 };
@@ -77,17 +83,19 @@ export const getOfferings = async (): Promise<PurchasesOffering | null> => {
     // Return the current offering (you can customize this to return specific offerings)
     return offerings.current;
   } catch (error) {
-    console.error('Error fetching offerings:', error);
+    console.error("Error fetching offerings:", error);
     return null;
   }
 };
 
 // Purchase a package
 export const purchasePackage = async (
-  packageToPurchase: PurchasesPackage
+  packageToPurchase: PurchasesPackage,
 ): Promise<CustomerInfo> => {
   if (!checkAvailability()) {
-    throw new Error('RevenueCat is not available. This feature requires a development build or Test Store API key.');
+    throw new Error(
+      "RevenueCat is not available. This feature requires a development build or Test Store API key.",
+    );
   }
   try {
     const { customerInfo } = await Purchases.purchasePackage(packageToPurchase);
@@ -95,11 +103,11 @@ export const purchasePackage = async (
   } catch (error: any) {
     // Handle purchase errors
     if (error.userCancelled) {
-      throw new Error('Purchase was cancelled');
-    } else if (error.code === 'STORE_PROBLEM') {
-      throw new Error('There was a problem with the store');
+      throw new Error("Purchase was cancelled");
+    } else if (error.code === "STORE_PROBLEM") {
+      throw new Error("There was a problem with the store");
     } else {
-      throw new Error(error.message || 'Purchase failed. Please try again.');
+      throw new Error(error.message || "Purchase failed. Please try again.");
     }
   }
 };
@@ -107,14 +115,18 @@ export const purchasePackage = async (
 // Restore previous purchases
 export const restorePurchases = async (): Promise<CustomerInfo> => {
   if (!checkAvailability()) {
-    throw new Error('RevenueCat is not available. This feature requires a development build or Test Store API key.');
+    throw new Error(
+      "RevenueCat is not available. This feature requires a development build or Test Store API key.",
+    );
   }
   try {
     const customerInfo = await Purchases.restorePurchases();
     return customerInfo;
   } catch (error: any) {
-    console.error('Error restoring purchases:', error);
-    throw new Error(error.message || 'Failed to restore purchases. Please try again.');
+    console.error("Error restoring purchases:", error);
+    throw new Error(
+      error.message || "Failed to restore purchases. Please try again.",
+    );
   }
 };
 
@@ -128,9 +140,9 @@ export const checkPremiumStatus = async (): Promise<boolean> => {
     // Check if user has active premium entitlement
     // The entitlement identifier should match what you set in RevenueCat dashboard
     // Common names: 'premium', 'pro', 'subscription', etc.
-    return customerInfo.entitlements.active['premium'] !== undefined;
+    return customerInfo.entitlements.active["premium"] !== undefined;
   } catch (error) {
-    console.error('Error checking premium status:', error);
+    console.error("Error checking premium status:", error);
     return false;
   }
 };
@@ -138,13 +150,14 @@ export const checkPremiumStatus = async (): Promise<boolean> => {
 // Get customer info
 export const getCustomerInfo = async (): Promise<CustomerInfo> => {
   if (!checkAvailability()) {
-    throw new Error('RevenueCat is not available. This feature requires a development build or Test Store API key.');
+    throw new Error(
+      "RevenueCat is not available. This feature requires a development build or Test Store API key.",
+    );
   }
   try {
     return await Purchases.getCustomerInfo();
   } catch (error) {
-    console.error('Error getting customer info:', error);
+    console.error("Error getting customer info:", error);
     throw error;
   }
 };
-
