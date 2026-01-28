@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const DEVMODE_PREMIUM_KEY_PREFIX = 'devmode:premium:';
 const DEVMODE_ACTIVATED_KEY_PREFIX = 'devmode:activated:';
+const DEVMODE_UNLIMITED_VERSES_KEY_PREFIX = 'devmode:unlimitedVerses:';
 const DEVMODE_CODE = 'devmode32';
 
 /**
@@ -70,6 +71,40 @@ export const setDevModePremium = async (isPremium: boolean, userId?: string): Pr
     await AsyncStorage.setItem(key, String(isPremium));
   } catch (error) {
     console.error('Error setting devmode premium:', error);
+  }
+};
+
+/**
+ * Gets the devmode unlimited verses override status for a specific user
+ * This allows unlimited verse usage without granting premium status
+ */
+export const getDevModeUnlimitedVerses = async (userId?: string): Promise<boolean> => {
+  if (!userId) {
+    return false;
+  }
+  try {
+    const key = `${DEVMODE_UNLIMITED_VERSES_KEY_PREFIX}${userId}`;
+    const value = await AsyncStorage.getItem(key);
+    return value === 'true';
+  } catch (error) {
+    console.error('Error getting devmode unlimited verses:', error);
+    return false;
+  }
+};
+
+/**
+ * Sets the devmode unlimited verses override status for a specific user
+ * This allows unlimited verse usage without granting premium status
+ */
+export const setDevModeUnlimitedVerses = async (unlimited: boolean, userId?: string): Promise<void> => {
+  if (!userId) {
+    return;
+  }
+  try {
+    const key = `${DEVMODE_UNLIMITED_VERSES_KEY_PREFIX}${userId}`;
+    await AsyncStorage.setItem(key, String(unlimited));
+  } catch (error) {
+    console.error('Error setting devmode unlimited verses:', error);
   }
 };
 

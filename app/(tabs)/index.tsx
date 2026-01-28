@@ -1,16 +1,19 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View, ActivityIndicator, AppState, Dimensions, KeyboardAvoidingView, Platform, ScrollView, Share, Alert, Animated, LayoutAnimation, Keyboard, Easing, Image, Modal } from 'react-native';
-import { router, usePathname } from 'expo-router';
+import { router, usePathname, useFocusEffect } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getVerseForSituation, VerseResponse } from '../../src/services/openai';
 import { getUsageToday, canUseForFree, incrementUsage } from '../../src/services/usageTracker';
 import { usePremium } from '../../src/contexts/PremiumContext';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { getDevModeUnlimitedVerses } from '../../src/services/devmode';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { LoadingSpinner } from '../../src/components/LoadingSpinner';
 import { showAPIError, showFirestoreError } from '../../src/utils/errorHandler';
 import { saveVerse } from '../../src/services/firestore';
 import { hasSeenWelcome, setWelcomeSeen } from '../../src/services/onboarding';
+import { parseReference } from '../../src/utils/bible';
 import { BookOpen, Settings, X, Share2 } from 'react-native-feather';
 import Svg, { Defs, Pattern, Circle, Rect } from 'react-native-svg';
 import { 
@@ -53,6 +56,11 @@ export default function HomeScreen() {
   const [showWelcome, setShowWelcome] = useState<boolean | null>(null); // null = loading, true = show welcome, false = show regular
   const welcomeOpacity = useRef(new Animated.Value(1)).current;
   const inputOpacity = useRef(new Animated.Value(0)).current;
+  const headerOpacity = useRef(new Animated.Value(0)).current; // Header opacity - hidden when welcome is shown
+
+  // Storage key for persisting verse result
+  const VERSE_RESULT_STORAGE_KEY = 'home:verseResult';
+  const ORIGINAL_INPUT_STORAGE_KEY = 'home:originalInput';
 
   // Parchment texture opacity controls - adjust these values to control texture visibility
   const TEXTURE_OPACITY = 0.05; // Overall texture opacity (0.0 = invisible, 1.0 = fully opaque)
@@ -118,15 +126,48 @@ export default function HomeScreen() {
         setShowWelcome(false);
         welcomeOpacity.setValue(0);
         inputOpacity.setValue(1);
+        headerOpacity.setValue(1); // Show header
       } else {
         // User hasn't seen welcome - show welcome state
         setShowWelcome(true);
         welcomeOpacity.setValue(1);
         inputOpacity.setValue(0);
+        headerOpacity.setValue(0); // Hide header
       }
     };
     loadWelcomeStatus();
   }, []);
+
+  // Restore verse result from storage when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      const restoreVerseResult = async () => {
+        try {
+          const [savedVerseResult, savedOriginalInput] = await Promise.all([
+            AsyncStorage.getItem(VERSE_RESULT_STORAGE_KEY),
+            AsyncStorage.getItem(ORIGINAL_INPUT_STORAGE_KEY),
+          ]);
+
+          if (savedVerseResult) {
+            const parsed = JSON.parse(savedVerseResult);
+            // Always restore from storage when screen comes into focus
+            // This ensures the verse persists even after navigation
+            setVerseResult(parsed);
+            if (savedOriginalInput) {
+              setOriginalInput(savedOriginalInput);
+            }
+            
+            // Ensure card animation is visible
+            cardAnimation.setValue(1);
+          }
+        } catch (error) {
+          console.error('Error restoring verse result:', error);
+        }
+      };
+
+      restoreVerseResult();
+    }, [])
+  );
 
   // Reload count when navigating back to this screen (e.g., from result screen) - only for free users
   useEffect(() => {
@@ -200,20 +241,25 @@ export default function HomeScreen() {
       return;
     }
 
-    // Check if user can use for free (skip check if premium)
+    // Check if user can use for free (skip check if premium or dev mode unlimited verses)
     if (!isPremium) {
-      const canUse = await canUseForFree();
-      if (!canUse) {
-        // Show daily limit modal instead of navigating directly to paywall
-        setShowDailyLimitModal(true);
-        // Animate modal fade in
-        Animated.timing(dailyLimitModalOpacity, {
-          toValue: 1,
-          duration: 300,
-          easing: Easing.out(Easing.ease),
-          useNativeDriver: true,
-        }).start();
-        return;
+      // Check dev mode unlimited verses (allows unlimited without premium)
+      const hasUnlimitedVerses = user ? await getDevModeUnlimitedVerses(user.uid) : false;
+      
+      if (!hasUnlimitedVerses) {
+        const canUse = await canUseForFree(user?.uid);
+        if (!canUse) {
+          // Show daily limit modal instead of navigating directly to paywall
+          setShowDailyLimitModal(true);
+          // Animate modal fade in
+          Animated.timing(dailyLimitModalOpacity, {
+            toValue: 1,
+            duration: 300,
+            easing: Easing.out(Easing.ease),
+            useNativeDriver: true,
+          }).start();
+          return;
+        }
       }
     }
 
@@ -221,11 +267,14 @@ export default function HomeScreen() {
     try {
       const verseData = await getVerseForSituation(input.trim());
       
-      // Increment usage after successful fetch (only for free users)
+      // Increment usage after successful fetch (only for free users, not if dev mode unlimited verses)
       if (!isPremium) {
-        await incrementUsage();
-        const newCount = await getUsageToday();
-        setUsageCount(newCount);
+        const hasUnlimitedVerses = user ? await getDevModeUnlimitedVerses(user.uid) : false;
+        if (!hasUnlimitedVerses) {
+          await incrementUsage();
+          const newCount = await getUsageToday();
+          setUsageCount(newCount);
+        }
       }
       
       // Store original input before clearing
@@ -243,6 +292,14 @@ export default function HomeScreen() {
       setWhyButtonWidth(null);
       setExplanationHeight(null);
       explanationHeightRef.current = null;
+      
+      // Persist verse result to storage so it survives navigation
+      try {
+        await AsyncStorage.setItem(VERSE_RESULT_STORAGE_KEY, JSON.stringify(verseData));
+        await AsyncStorage.setItem(ORIGINAL_INPUT_STORAGE_KEY, currentInput);
+      } catch (error) {
+        console.error('Error saving verse result to storage:', error);
+      }
       
       // Animate card expansion
       Animated.spring(cardAnimation, {
@@ -308,7 +365,7 @@ export default function HomeScreen() {
     }
   };
 
-  const handleNewVerse = () => {
+  const handleNewVerse = async () => {
       // Hide explanation if shown
     if (showExplanation) {
       setShowExplanation(false);
@@ -326,9 +383,10 @@ export default function HomeScreen() {
       useNativeDriver: true,
       tension: 50,
       friction: 7,
-    }).start(() => {
+    }).start(async () => {
       // Clear result after animation completes
       setVerseResult(null);
+      setOriginalInput('');
       setIsSaved(false);
       setShowExplanation(false);
       setExplanationReady(false);
@@ -338,6 +396,14 @@ export default function HomeScreen() {
       setWhyButtonWidth(null);
       setExplanationHeight(null);
       explanationHeightRef.current = null;
+      
+      // Clear persisted verse result from storage
+      try {
+        await AsyncStorage.removeItem(VERSE_RESULT_STORAGE_KEY);
+        await AsyncStorage.removeItem(ORIGINAL_INPUT_STORAGE_KEY);
+      } catch (error) {
+        console.error('Error clearing verse result from storage:', error);
+      }
     });
   };
 
@@ -408,6 +474,22 @@ export default function HomeScreen() {
     router.push('/paywall');
   };
 
+  const handleReadFullChapter = () => {
+    if (!verseResult) return;
+    
+    const parsed = parseReference(verseResult.reference);
+    if (parsed) {
+      router.push({
+        pathname: '/read',
+        params: {
+          bookName: parsed.bookName,
+          chapter: parsed.chapter.toString(),
+          verse: parsed.verse.toString(),
+        },
+      });
+    }
+  };
+
   const handleDailyLimitModalClose = () => {
     Animated.timing(dailyLimitModalOpacity, {
       toValue: 0,
@@ -430,13 +512,21 @@ export default function HomeScreen() {
     // Mark welcome as seen
     await setWelcomeSeen();
     
-    // Start fading in input immediately (it's already rendered but invisible)
-    Animated.timing(inputOpacity, {
-      toValue: 1,
-      duration: 300,
-      easing: Easing.out(Easing.ease),
-      useNativeDriver: true,
-    }).start();
+    // Start fading in header and input simultaneously
+    Animated.parallel([
+      Animated.timing(headerOpacity, {
+        toValue: 1,
+        duration: 300,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      }),
+      Animated.timing(inputOpacity, {
+        toValue: 1,
+        duration: 300,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      }),
+    ]).start();
     
     // Start fading out welcome with slight delay for smooth crossfade
     setTimeout(() => {
@@ -554,8 +644,15 @@ export default function HomeScreen() {
               }
             ]}
           >
-          {/* App logo/name with icon */}
-          <View style={styles.header}>
+          {/* App logo/name with icon - Always rendered, fades in when welcome is dismissed */}
+          <Animated.View 
+            style={[
+              styles.header, 
+              { 
+                opacity: headerOpacity,
+              }
+            ]}
+          >
             <View style={styles.logoIconContainer}>
               <Image 
                 source={getBookLogo()} 
@@ -565,38 +662,13 @@ export default function HomeScreen() {
             </View>
             <Text style={styles.logoText}>Pocket Verse</Text>
             <Text style={styles.tagline}>The right verse for right now</Text>
-          </View>
+          </Animated.View>
 
           {/* Input Area Container - Fixed height to prevent layout jump */}
           <View style={styles.inputAreaContainer}>
             {/* Show nothing while loading welcome status to prevent flash */}
             {showWelcome !== null && (
               <>
-                {/* Welcome State - Always rendered but positioned absolutely for smooth fade */}
-                <Animated.View 
-                  style={[
-                    styles.welcomeContainer,
-                    styles.overlayContainer,
-                    { opacity: welcomeOpacity },
-                  ]}
-                  pointerEvents={showWelcome === true ? 'auto' : 'none'}
-                >
-                  <Text style={styles.welcomeTitle}>Welcome</Text>
-                  <Text style={styles.welcomeText}>
-                    Share what's on your heart and receive a verse that speaks to you.
-                  </Text>
-                  <Text style={[styles.welcomeText, styles.welcomeTextSecondary]}>
-                    Every day, you get 1 free verse.
-                  </Text>
-                  <TouchableOpacity
-                    style={[styles.button, { backgroundColor: colors.primary }]}
-                    onPress={handleWelcomeContinue}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.buttonText}>Okay, got it!</Text>
-                  </TouchableOpacity>
-                </Animated.View>
-
                 {/* Regular Input State - Always rendered but positioned absolutely for smooth fade */}
                 <Animated.View 
                   style={[
@@ -673,8 +745,19 @@ export default function HomeScreen() {
                 <X width={closeIconSize} height={closeIconSize} color={colors.darker} strokeWidth={2} />
               </TouchableOpacity>
 
-              {/* Verse Reference */}
-              <Text style={styles.resultReference}>{verseResult.reference}</Text>
+              {/* Verse Reference - Tappable to read full chapter */}
+              <TouchableOpacity
+                onPress={handleReadFullChapter}
+                activeOpacity={0.7}
+                style={styles.referenceContainer}
+              >
+                <Text style={[styles.resultReference, { color: colors.primary }]}>
+                  {verseResult.reference}
+                </Text>
+                <Text style={[styles.readFullChapterText, { color: colors.darker }]}>
+                  Read full chapter
+                </Text>
+              </TouchableOpacity>
 
               {/* Verse Text */}
               <Text style={styles.resultText}>"{verseResult.text}"</Text>
@@ -830,6 +913,53 @@ export default function HomeScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
+      {/* Welcome Screen - Full screen overlay that covers everything */}
+      {showWelcome !== null && (
+        <Animated.View 
+          style={[
+            styles.welcomeOverlay,
+            { opacity: welcomeOpacity },
+          ]}
+          pointerEvents={showWelcome === true ? 'auto' : 'none'}
+        >
+          <View style={styles.welcomeContainer}>
+            {/* Logo */}
+            <View style={styles.welcomeLogoContainer}>
+              <Image 
+                source={getBookLogo()} 
+                style={{ width: logoIconSize, height: logoIconSize }}
+                resizeMode="contain"
+              />
+            </View>
+
+            {/* Welcome to */}
+            <Text style={styles.welcomeToText}>Welcome to</Text>
+
+            {/* Pocket Verse - Hero text */}
+            <Text style={styles.welcomeAppName}>Pocket Verse</Text>
+
+            {/* Main copy */}
+            <Text style={styles.welcomeMainCopy}>
+              Tell us what's on your mind —{'\n'}we'll match you with the perfect verse.
+            </Text>
+
+            {/* Free verse note */}
+            <Text style={styles.welcomeFreeNote}>
+              Enjoy one free verse every day.
+            </Text>
+
+            {/* Button */}
+            <TouchableOpacity
+              style={[styles.button, { backgroundColor: colors.primary }]}
+              onPress={handleWelcomeContinue}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.buttonText}>Okay, thank you</Text>
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
+      )}
+
       {/* Daily Limit Modal */}
       <Modal
         visible={showDailyLimitModal}
@@ -973,33 +1103,62 @@ const styles = StyleSheet.create({
     position: 'relative',
     minHeight: scaleSpacing(180), // Fixed min height to prevent layout jump
   },
-  welcomeContainer: {
+  welcomeOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#F5F1E9', // Match background color
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: scaleSpacing(20),
     paddingHorizontal: scaleSpacing(8),
+    zIndex: 1000, // Ensure it's on top of everything
+    elevation: 1000, // Android z-index
   },
-  welcomeTitle: {
-    fontSize: scaleFontSize(24, 20),
+  welcomeContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+  },
+  welcomeLogoContainer: {
+    marginBottom: scaleSpacing(24),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  welcomeToText: {
+    fontSize: scaleFontSize(14, 12),
+    fontFamily: 'Nunito_400Regular',
+    color: '#3E3A36',
+    textAlign: 'center',
+    marginBottom: scaleSpacing(4), // Tight spacing with app name
+    opacity: 0.7, // Light/thin appearance
+  },
+  welcomeAppName: {
+    fontSize: scaleFontSize(32, 26),
     fontFamily: 'Nunito_700Bold',
     color: '#3E3A36',
     textAlign: 'center',
-    marginBottom: scaleSpacing(20),
+    marginBottom: scaleSpacing(32), // Medium gap before main copy
   },
-  welcomeText: {
+  welcomeMainCopy: {
     fontSize: scaleFontSize(17, 15),
     fontFamily: 'Nunito_400Regular',
     color: '#3E3A36',
     textAlign: 'center',
-    marginBottom: scaleSpacing(12),
+    marginBottom: scaleSpacing(16), // Small gap before free verse note
     lineHeight: scaleFontSize(26, 22),
     paddingHorizontal: scaleSpacing(4),
   },
-  welcomeTextSecondary: {
-    fontSize: scaleFontSize(17, 13),
-    fontFamily: 'Nunito_700Bold',
-    color: '#630',
-    marginBottom: scaleSpacing(24),
+  welcomeFreeNote: {
+    fontSize: scaleFontSize(15, 13),
+    fontFamily: 'Nunito_400Regular',
+    color: '#3E3A36',
+    textAlign: 'center',
+    marginBottom: scaleSpacing(32), // Medium gap before button
+    opacity: 0.7, // Lighter weight appearance
+    paddingHorizontal: scaleSpacing(4),
   },
   regularInputContainer: {
     width: '100%',
@@ -1095,11 +1254,23 @@ const styles = StyleSheet.create({
     padding: scaleSpacing(8),
     zIndex: 10,
   },
+  referenceContainer: {
+    marginBottom: scaleSpacing(16),
+    alignItems: 'center',
+  },
   resultReference: {
     fontSize: scaleFontSize(22, 18),
     fontFamily: 'Nunito_700Bold',
-    marginBottom: scaleSpacing(16),
-    color: '#3E3A36',
+    textDecorationLine: 'underline',
+    textDecorationStyle: 'solid',
+    marginBottom: scaleSpacing(4),
+    // color will be set dynamically via inline style
+  },
+  readFullChapterText: {
+    fontSize: scaleFontSize(13, 11),
+    fontFamily: 'Nunito_400Regular',
+    opacity: 0.7,
+    // color will be set dynamically via inline style
   },
   resultText: {
     fontSize: scaleFontSize(18, 15),

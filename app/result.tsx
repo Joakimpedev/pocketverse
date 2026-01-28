@@ -7,6 +7,7 @@ import { useTheme } from '../src/contexts/ThemeContext';
 import { deleteVerse } from '../src/services/firestore';
 import { showFirestoreError } from '../src/utils/errorHandler';
 import { scaleFontSize, scaleSpacing } from '../src/utils/responsive';
+import { parseReference } from '../src/utils/bible';
 
 export default function ResultScreen() {
   const params = useLocalSearchParams<{
@@ -94,6 +95,22 @@ export default function ResultScreen() {
         router.push('/(tabs)');
   };
 
+  const handleReadInContext = () => {
+    const parsed = parseReference(verseData.reference);
+    if (parsed) {
+      router.push({
+        pathname: '/read',
+        params: {
+          bookName: parsed.bookName,
+          chapter: parsed.chapter.toString(),
+          verse: parsed.verse.toString(),
+        },
+      });
+    } else {
+      Alert.alert('Error', 'Could not parse verse reference. Please try again.');
+    }
+  };
+
   return (
     <View style={[styles.container, { paddingTop: Math.max(insets.top + scaleSpacing(12), scaleSpacing(40)) }]}>
       <ScrollView 
@@ -133,6 +150,17 @@ export default function ResultScreen() {
             {/* Explanation */}
             <Text style={styles.explanation}>{verseData.explanation}</Text>
           </View>
+
+          {/* Read in Context Button */}
+          <TouchableOpacity
+            style={[styles.readInContextButton, { borderColor: colors.primary }]}
+            onPress={handleReadInContext}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.readInContextText, { color: colors.primary }]}>
+              Read in Context
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* Bottom row: Action buttons */}
@@ -257,6 +285,19 @@ const styles = StyleSheet.create({
     lineHeight: scaleFontSize(22, 18),
     color: '#3E3A36', // Warm dark grey
     textAlign: 'left',
+  },
+  readInContextButton: {
+    borderWidth: 2,
+    borderRadius: scaleSpacing(12),
+    paddingVertical: scaleSpacing(14),
+    paddingHorizontal: scaleSpacing(20),
+    alignItems: 'center',
+    marginTop: scaleSpacing(30),
+    marginBottom: scaleSpacing(10),
+  },
+  readInContextText: {
+    fontSize: scaleFontSize(16, 14),
+    fontFamily: 'Nunito_600SemiBold',
   },
   buttonRow: {
     flexDirection: 'row',

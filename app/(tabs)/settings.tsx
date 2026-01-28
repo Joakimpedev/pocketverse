@@ -7,7 +7,7 @@ import { useTheme, ThemeName, themes } from '../../src/contexts/ThemeContext';
 import { useAuth } from '../../src/contexts/AuthContext';
 import Constants from 'expo-constants';
 import { showPaymentError, showSuccessAlert } from '../../src/utils/errorHandler';
-import { getDevModePremium, setDevModePremium, getDevModeActivated, activateDevMode } from '../../src/services/devmode';
+import { getDevModePremium, setDevModePremium, getDevModeActivated, activateDevMode, getDevModeUnlimitedVerses, setDevModeUnlimitedVerses } from '../../src/services/devmode';
 import { scaleFontSize, scaleSpacing } from '../../src/utils/responsive';
 import { resetOnboarding, resetWelcome } from '../../src/services/onboarding';
 import { areNotificationsEnabled, setNotificationsEnabled, requestNotificationPermissions } from '../../src/services/notifications';
@@ -18,6 +18,7 @@ export default function SettingsScreen() {
   const { signOut, deleteAccount, user } = useAuth();
   const [isRestoring, setIsRestoring] = React.useState(false);
   const [devModePremium, setDevModePremiumState] = useState(false);
+  const [devModeUnlimitedVerses, setDevModeUnlimitedVersesState] = useState(false);
   const [devModeActivated, setDevModeActivated] = useState(false);
   const [versionPressCount, setVersionPressCount] = useState(0);
   const [showCodeModal, setShowCodeModal] = useState(false);
@@ -40,14 +41,17 @@ export default function SettingsScreen() {
       if (!user) {
         // No user logged in, clear devmode state
         setDevModePremiumState(false);
+        setDevModeUnlimitedVersesState(false);
         setDevModeActivated(false);
         return;
       }
-      const [premiumValue, activatedValue] = await Promise.all([
+      const [premiumValue, unlimitedVersesValue, activatedValue] = await Promise.all([
         getDevModePremium(user.uid),
+        getDevModeUnlimitedVerses(user.uid),
         getDevModeActivated(user.uid),
       ]);
       setDevModePremiumState(premiumValue);
+      setDevModeUnlimitedVersesState(unlimitedVersesValue);
       setDevModeActivated(activatedValue);
     };
     loadDevModeStatus();
@@ -69,6 +73,13 @@ export default function SettingsScreen() {
     setDevModePremiumState(value);
     // Refresh premium status to reflect the change
     await refreshPremiumStatus();
+  };
+
+  // Handle devmode unlimited verses toggle
+  const handleDevModeUnlimitedVersesToggle = async (value: boolean) => {
+    if (!user) return;
+    await setDevModeUnlimitedVerses(value, user.uid);
+    setDevModeUnlimitedVersesState(value);
   };
 
   // Handle notification toggle
@@ -440,6 +451,21 @@ export default function SettingsScreen() {
                 />
               </View>
               <View style={styles.devmodeDivider} />
+              <View style={styles.devmodeRow}>
+                <View style={styles.devmodeLabelContainer}>
+                  <Text style={styles.devmodeLabel}>Unlimited Verses</Text>
+                  <Text style={styles.devmodeDescription}>
+                    Test unlimited verses without premium status
+                  </Text>
+                </View>
+                <Switch
+                  value={devModeUnlimitedVerses}
+                  onValueChange={handleDevModeUnlimitedVersesToggle}
+                  trackColor={{ false: '#E8E4DD', true: colors.primary }}
+                  thumbColor={devModeUnlimitedVerses ? '#fff' : colors.darker}
+                />
+              </View>
+              <View style={styles.devmodeDivider} />
               <TouchableOpacity
                 style={styles.devmodeButtonRow}
                 onPress={handleResetWelcome}
@@ -765,6 +791,17 @@ const styles = StyleSheet.create({
     fontSize: scaleFontSize(16, 14),
     fontFamily: 'Nunito_400Regular',
     color: '#3E3A36',
+  },
+  devmodeLabelContainer: {
+    flex: 1,
+    marginRight: scaleSpacing(16),
+  },
+  devmodeDescription: {
+    fontSize: scaleFontSize(13, 11),
+    fontFamily: 'Nunito_400Regular',
+    color: '#666',
+    marginTop: scaleSpacing(4),
+    lineHeight: scaleFontSize(18, 15),
   },
   devmodeDivider: {
     height: 1,

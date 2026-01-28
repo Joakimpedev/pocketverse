@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getDevModeUnlimitedVerses } from './devmode';
 
 const DAILY_COUNT_KEY = 'dailyCount';
 const LAST_RESET_DATE_KEY = 'lastResetDate';
@@ -73,9 +74,18 @@ export const resetIfNewDay = async (): Promise<void> => {
 
 /**
  * Checks if the user can use the app for free (hasn't reached daily limit)
+ * @param userId - Optional user ID to check for dev mode unlimited verses
  */
-export const canUseForFree = async (): Promise<boolean> => {
+export const canUseForFree = async (userId?: string): Promise<boolean> => {
   try {
+    // Check dev mode unlimited verses first (allows unlimited without premium)
+    if (userId) {
+      const hasUnlimitedVerses = await getDevModeUnlimitedVerses(userId);
+      if (hasUnlimitedVerses) {
+        return true;
+      }
+    }
+    
     const count = await getUsageToday();
     return count < FREE_LIMIT;
   } catch (error) {
