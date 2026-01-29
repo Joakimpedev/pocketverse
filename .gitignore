@@ -43,7 +43,9 @@ src/config/openai.config.ts
 *.tsbuildinfo
 
 # generated native folders
-/ios
 /android
 
 .vercel
+
+yarn.lock
+Podfile.lock

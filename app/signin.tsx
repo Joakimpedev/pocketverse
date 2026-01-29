@@ -38,7 +38,8 @@ export default function SignInScreen() {
   const insets = useSafeAreaInsets();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isAppleLoading, setIsAppleLoading] = useState(false);
+  const [isEmailLoading, setIsEmailLoading] = useState(false);
   const [isEmailMode, setIsEmailMode] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
   const [isAppleAuthAvailable, setIsAppleAuthAvailable] = useState(RNPlatform.OS === 'ios');
@@ -100,7 +101,7 @@ export default function SignInScreen() {
       return;
     }
 
-    setIsLoading(true);
+    setIsEmailLoading(true);
     try {
       await signInWithEmail(email, password, isSignUp);
       await setOnboardingComplete();
@@ -123,12 +124,12 @@ export default function SignInScreen() {
           } else {
             Alert.alert('Sign Up Failed', 'Could not create account. Please try again.');
           }
-          setIsLoading(false);
+          setIsEmailLoading(false);
           return;
         }
       }
-      
-      // If email already in use during sign up, automatically try to sign in
+
+      // Email already in use: show message and switch to sign-in mode (do not navigate)
       if (error.code === 'auth/email-already-in-use' && isSignUp) {
         console.log('Email already exists, attempting to sign in instead...');
         try {
@@ -143,7 +144,7 @@ export default function SignInScreen() {
           } else {
             Alert.alert('Sign In Failed', 'Could not sign in. Please try again.');
           }
-          setIsLoading(false);
+          setIsEmailLoading(false);
           return;
         }
       }
@@ -159,7 +160,7 @@ export default function SignInScreen() {
       }
       Alert.alert('Sign In Failed', message);
     } finally {
-      setIsLoading(false);
+      setIsEmailLoading(false);
     }
   };
 
@@ -169,18 +170,20 @@ export default function SignInScreen() {
       return;
     }
 
-    setIsLoading(true);
+    setIsAppleLoading(true);
     try {
       await signInWithApple();
       await setOnboardingComplete();
       router.replace('/(tabs)');
     } catch (error: any) {
-      if (error.code !== 'ERR_CANCELED') {
-        console.error('Apple Sign In error:', error);
-        Alert.alert('Sign In Failed', error.message || 'Failed to sign in with Apple. Please try again.');
+      if (error?.code === 'ERR_CANCELED') {
+        setIsAppleLoading(false);
+        return;
       }
+      console.error('Apple Sign In error:', error);
+      Alert.alert('Sign In Failed', error?.message || 'Failed to sign in with Apple. Please try again.');
     } finally {
-      setIsLoading(false);
+      setIsAppleLoading(false);
     }
   };
 
@@ -298,7 +301,7 @@ export default function SignInScreen() {
           {/* Content */}
           <View style={styles.content}>
             {/* Sign In with Apple (iOS only, requires native build) */}
-            {RNPlatform.OS === 'ios' && !isLoading && (() => {
+            {RNPlatform.OS === 'ios' && !isAppleLoading && (() => {
               const AppleAuth = checkAppleAuth();
               if (AppleAuth) {
                 return (
@@ -321,7 +324,7 @@ export default function SignInScreen() {
                 </View>
               );
             })()}
-            {RNPlatform.OS === 'ios' && isLoading && (
+            {RNPlatform.OS === 'ios' && isAppleLoading && (
               <TouchableOpacity
                 style={[styles.loadingButton, { backgroundColor: '#000' }]}
                 disabled={true}
@@ -352,7 +355,7 @@ export default function SignInScreen() {
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
-                  editable={!isLoading}
+                  editable={!isEmailLoading}
                 />
                 <TextInput
                   style={[styles.input, { borderColor: colors.lighter, marginTop: scaleSpacing(12) }]}
@@ -363,15 +366,15 @@ export default function SignInScreen() {
                   secureTextEntry
                   autoCapitalize="none"
                   autoCorrect={false}
-                  editable={!isLoading}
+                  editable={!isEmailLoading}
                 />
                 <TouchableOpacity
                   style={[styles.emailButton, { backgroundColor: colors.primary }]}
                   onPress={handleEmailSignIn}
-                  disabled={isLoading}
+                  disabled={isEmailLoading}
                   activeOpacity={0.8}
                 >
-                  {isLoading ? (
+                  {isEmailLoading ? (
                     <ActivityIndicator color="#fff" size="small" />
                   ) : (
                     <Text style={styles.emailButtonText}>
@@ -437,7 +440,6 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 600,
     alignSelf: 'center',
-    paddingHorizontal: scaleSpacing(20),
   },
   header: {
     alignItems: 'center',
@@ -467,8 +469,7 @@ const styles = StyleSheet.create({
     flexGrow: 0,
   },
   cardsScrollContent: {
-    paddingLeft: scaleSpacing(20),
-    paddingRight: scaleSpacing(20),
+    paddingHorizontal: scaleSpacing(30),
     alignItems: 'center',
     paddingVertical: scaleSpacing(8),
   },
@@ -523,6 +524,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingTop: scaleSpacing(16),
+    paddingHorizontal: scaleSpacing(20),
   },
   appleButtonContainer: {
     width: '100%',

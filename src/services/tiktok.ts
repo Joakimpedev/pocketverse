@@ -8,7 +8,7 @@ import {
 import { tiktokConfig } from "../config/tiktok.config";
 
 let isSDKInitialized = false;
-const debug = false;
+const debug = __DEV__;
 
 let attPermissionRequested = false;
 let attPermissionStatus: string | null = null;

@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { 
   User, 
-  signInAnonymously, 
   onAuthStateChanged, 
   signOut as firebaseSignOut,
   deleteUser as firebaseDeleteUser,
@@ -10,6 +9,7 @@ import {
   OAuthProvider,
   signInWithCredential,
 } from 'firebase/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth } from '../services/firebase';
 import { resetIfNewDay } from '../services/usageTracker';
 import { createUserDocument, deleteUserData } from '../services/firestore';
@@ -176,9 +176,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       await firebaseSignOut(auth);
       setUser(null);
-      // Reset user in analytics
       await resetPostHogUser();
       await resetTikTokUser();
+      await AsyncStorage.clear();
     } catch (error) {
       console.error('Error signing out:', error);
       throw error;
@@ -186,21 +186,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const deleteAccount = async () => {
-    if (!user) {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
       throw new Error('No user to delete');
     }
 
     try {
-      const uid = user.uid;
-      
-      // Delete user data from Firestore
+      const uid = currentUser.uid;
       await deleteUserData(uid);
-      
-      // Delete Firebase Auth account
-      await firebaseDeleteUser(user);
-      
+      await firebaseDeleteUser(currentUser);
       setUser(null);
-    } catch (error) {
+      await AsyncStorage.clear();
+    } catch (error: any) {
+      const code = error?.code ?? '';
+      const isRequiresRecentLogin = code === 'auth/requires-recent-login' || String(error?.message ?? '').includes('requires-recent-login');
+      if (isRequiresRecentLogin) {
+        throw Object.assign(new Error('Account deletion requires a recent sign-in. Please sign out, sign in again, then try deleting your account.'), { code: 'auth/requires-recent-login' });
+      }
       console.error('Error deleting account:', error);
       throw error;
     }

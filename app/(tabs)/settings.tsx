@@ -171,32 +171,51 @@ export default function SettingsScreen() {
     );
   };
 
+  const performDeleteAccount = async () => {
+    setIsDeleting(true);
+    try {
+      await deleteAccount();
+      await resetOnboarding();
+      router.replace('/signin');
+    } catch (error: any) {
+      console.error('Error deleting account:', error);
+      const code = error?.code ?? '';
+      const isRequiresRecentLogin = code === 'auth/requires-recent-login' || String(error?.message ?? '').includes('requires-recent-login');
+
+      if (isRequiresRecentLogin) {
+        Alert.alert(
+          'Sign in again required',
+          'Account deletion requires a recent sign-in. Please sign out, sign in again, then try deleting your account.',
+          [
+            { text: 'OK', style: 'cancel' },
+            {
+              text: 'Sign out',
+              onPress: async () => {
+                try {
+                  await signOut();
+                  router.replace('/signin');
+                } catch (e) {
+                  console.error('Error signing out:', e);
+                }
+              },
+            },
+          ]
+        );
+      } else {
+        Alert.alert('Error', 'Failed to delete account. Please try again.');
+      }
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const handleDeleteAccount = () => {
     Alert.alert(
       'Delete Account',
       'Are you sure? This will permanently delete your account and all saved verses. This cannot be undone.',
       [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            setIsDeleting(true);
-            try {
-              await deleteAccount();
-              await resetOnboarding();
-              router.replace('/onboarding');
-            } catch (error: any) {
-              console.error('Error deleting account:', error);
-              Alert.alert('Error', 'Failed to delete account. Please try again.');
-            } finally {
-              setIsDeleting(false);
-            }
-          },
-        },
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => performDeleteAccount() },
       ]
     );
   };
@@ -320,6 +339,7 @@ export default function SettingsScreen() {
             <Text style={[styles.backButtonText, { color: colors.darker }]}>← Back</Text>
           </TouchableOpacity>
           <Text style={styles.header}>Settings</Text>
+          <View style={styles.emptyView} />
         </View>
         <ScrollView 
           style={styles.scrollView}
@@ -571,12 +591,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: scaleSpacing(20),
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: scaleSpacing(20),
   },
   backButton: {
     paddingVertical: scaleSpacing(8),
     paddingHorizontal: scaleSpacing(12),
-    marginRight: scaleSpacing(12),
+  },
+  emptyView: {
+    width: '20%'
   },
   backButtonText: {
     fontSize: scaleFontSize(16, 14),

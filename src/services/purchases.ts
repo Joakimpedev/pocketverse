@@ -3,9 +3,12 @@ import Purchases, {
   PurchasesPackage,
   CustomerInfo,
 } from "react-native-purchases";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
 import Constants from "expo-constants";
 import { revenueCatConfig } from "../config/revenuecat.config";
+
+const OFFERING_CACHE_KEY = "@pocketverse/offering_cache";
 
 // Track if RevenueCat is initialized
 let isInitialized = false;
@@ -73,6 +76,42 @@ export const logoutPurchases = async (): Promise<void> => {
   }
 };
 
+export const invalidateCustomerInfoCache = async (): Promise<void> => {
+  if (!checkAvailability()) {
+    return;
+  }
+  try {
+    await Purchases.invalidateCustomerInfoCache();
+  } catch (error) {
+    console.error("Error invalidating RevenueCat cache:", error);
+  }
+};
+
+export const getCachedOffering = async (): Promise<PurchasesOffering | null> => {
+  try {
+    const raw = await AsyncStorage.getItem(OFFERING_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as PurchasesOffering;
+    return parsed && typeof parsed.identifier === "string" ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
+export const setCachedOffering = async (
+  offering: PurchasesOffering | null
+): Promise<void> => {
+  try {
+    if (!offering) {
+      await AsyncStorage.removeItem(OFFERING_CACHE_KEY);
+      return;
+    }
+    await AsyncStorage.setItem(OFFERING_CACHE_KEY, JSON.stringify(offering));
+  } catch (error) {
+    console.error("Error caching offering:", error);
+  }
+};
+
 // Get available offerings (packages)
 export const getOfferings = async (): Promise<PurchasesOffering | null> => {
   if (!checkAvailability()) {
@@ -80,8 +119,10 @@ export const getOfferings = async (): Promise<PurchasesOffering | null> => {
   }
   try {
     const offerings = await Purchases.getOfferings();
-    // Return the current offering (you can customize this to return specific offerings)
-    return offerings.current;
+    const current = offerings.current;
+    if (current) return current;
+    const defaultOffering = (offerings as any).all?.['default'] ?? (offerings as any).all?.['default_offering'];
+    return defaultOffering ?? null;
   } catch (error) {
     console.error("Error fetching offerings:", error);
     return null;
