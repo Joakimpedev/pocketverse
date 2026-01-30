@@ -294,3 +294,5 @@ export async function trackPurchased(): Promise<void> {
   await trackEvent("PurchasedPremium", {});
 }
 
+
+

@@ -147,7 +147,7 @@ export default function ReadScreen() {
 
   const handlePreviousChapter = () => {
     if (!isPremium) {
-      router.push('/paywall');
+      router.push('/onboarding-paywall-4');
       return;
     }
 
@@ -160,7 +160,7 @@ export default function ReadScreen() {
 
   const handleNextChapter = () => {
     if (!isPremium) {
-      router.push('/paywall');
+      router.push('/onboarding-paywall-4');
       return;
     }
 
@@ -173,7 +173,7 @@ export default function ReadScreen() {
 
   const handleBookSelect = (selectedBook: string) => {
     if (!isPremium) {
-      router.push('/paywall');
+      router.push('/onboarding-paywall-4');
       setShowBookPicker(false);
       return;
     }
@@ -186,7 +186,7 @@ export default function ReadScreen() {
 
   const handleChapterSelect = (selectedChapter: number) => {
     if (!isPremium) {
-      router.push('/paywall');
+      router.push('/onboarding-paywall-4');
       setShowChapterPicker(false);
       return;
     }

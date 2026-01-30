@@ -1,5 +1,9 @@
-import { Slot } from "expo-router";
+import { Stack, router, usePathname } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import {
+  SCREEN_ANIMATION_DURATION_MS,
+  SCREEN_ANIMATION_TYPE,
+} from "../src/config/navigation.config";
 import { AuthProvider, useAuth } from "../src/contexts/AuthContext";
 import { PremiumProvider } from "../src/contexts/PremiumContext";
 import { ThemeProvider } from "../src/contexts/ThemeContext";
@@ -23,6 +27,35 @@ import {
 import { initTikTok, trackEvent } from "../src/services/tiktok";
 import { useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { isOnboardingComplete } from "../src/services/onboarding";
+
+/**
+ * If the user has completed onboarding but the current route is an onboarding
+ * screen (e.g. app was restored to /onboarding), redirect to main app or signin.
+ * This ensures completed users never see onboarding again after restart.
+ */
+function OnboardingCompleteGuard() {
+  const pathname = usePathname();
+  const { user, isLoading: authLoading } = useAuth();
+
+  useEffect(() => {
+    if (authLoading) return;
+    const isOnboardingRoute =
+      pathname === "/onboarding" || pathname?.startsWith("/onboarding/");
+    if (!isOnboardingRoute) return;
+
+    let cancelled = false;
+    isOnboardingComplete().then((complete) => {
+      if (cancelled || !complete) return;
+      router.replace(user ? "/(tabs)" : "/signin");
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname, authLoading, user]);
+
+  return null;
+}
 
 function AppContent() {
   const { isLoading } = useAuth();
@@ -115,7 +148,18 @@ function AppContent() {
     );
   }
 
-  return <Slot />;
+  return (
+    <>
+      <OnboardingCompleteGuard />
+      <Stack
+        screenOptions={{
+          animation: SCREEN_ANIMATION_TYPE,
+          animationDuration: SCREEN_ANIMATION_DURATION_MS,
+          headerShown: false,
+        }}
+      />
+    </>
+  );
 }
 
 export default function RootLayout() {

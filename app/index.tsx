@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { router } from 'expo-router';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { useAuth } from '../src/contexts/AuthContext';
+import { isOnboardingComplete } from '../src/services/onboarding';
 
 /**
  * Root index route - handles onboarding and authentication flow
@@ -17,6 +18,16 @@ export default function Index() {
       }
 
       try {
+        // Check onboarding status first
+        const onboardingComplete = await isOnboardingComplete();
+        
+        if (!onboardingComplete) {
+          // Onboarding not complete - go to onboarding flow
+          router.replace('/onboarding');
+          setIsCheckingOnboarding(false);
+          return;
+        }
+
         if (!user) {
           // No user - go to sign in (which has onboarding cards)
           router.replace('/signin');
@@ -26,7 +37,11 @@ export default function Index() {
         }
       } catch (error) {
         console.error('Error checking navigation:', error);
-        if (!user) {
+        // On error, check onboarding first
+        const onboardingComplete = await isOnboardingComplete().catch(() => false);
+        if (!onboardingComplete) {
+          router.replace('/onboarding');
+        } else if (!user) {
           router.replace('/signin');
         } else {
           router.replace('/(tabs)');

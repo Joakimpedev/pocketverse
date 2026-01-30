@@ -106,7 +106,7 @@ export default function SettingsScreen() {
   };
 
   const handleUpgradeToPremium = () => {
-    router.push('/paywall');
+    router.push('/onboarding-paywall-4');
   };
 
   const handleRestorePurchases = async () => {
@@ -274,6 +274,12 @@ export default function SettingsScreen() {
   const handleResetWelcome = async () => {
     await resetWelcome();
     router.replace('/(tabs)');
+  };
+
+  // Handle reset onboarding (dev only)
+  const handleResetOnboarding = async () => {
+    await resetOnboarding();
+    router.replace('/onboarding');
   };
 
   const settingsItems = [
@@ -492,6 +498,15 @@ export default function SettingsScreen() {
                 activeOpacity={0.7}
               >
                 <Text style={styles.devmodeLabel}>Reset Welcome Screen</Text>
+                <Text style={styles.chevron}>›</Text>
+              </TouchableOpacity>
+              <View style={styles.devmodeDivider} />
+              <TouchableOpacity
+                style={styles.devmodeButtonRow}
+                onPress={handleResetOnboarding}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.devmodeLabel}>Restart Onboarding</Text>
                 <Text style={styles.chevron}>›</Text>
               </TouchableOpacity>
             </View>

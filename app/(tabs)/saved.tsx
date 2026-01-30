@@ -67,7 +67,7 @@ export default function SavedScreen() {
   const handleVersePress = (verse: SavedVerse) => {
     // Free users go to paywall when tapping locked cards
     if (!isPremium) {
-      router.push('/paywall');
+      router.push('/onboarding-paywall-4');
       return;
     }
     
@@ -282,7 +282,7 @@ export default function SavedScreen() {
         {!isPremium && savedVerses.length > 0 && (
           <TouchableOpacity
             style={[styles.banner, { backgroundColor: colors.darker }]}
-            onPress={() => router.push('/paywall')}
+            onPress={() => router.push('/onboarding-paywall-4')}
             activeOpacity={0.8}
           >
             <Text style={styles.bannerHeadline}>Unlock Your Saved Verses</Text>

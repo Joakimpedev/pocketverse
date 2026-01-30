@@ -117,12 +117,53 @@ export const trackSeenPaywall = async (): Promise<void> => {
   });
 };
 
-export const trackPurchased = async (packageId?: string, revenue?: number): Promise<void> => {
+export const trackPurchased = async (packageId?: string, revenue?: number, isTrial?: boolean): Promise<void> => {
   await trackEvent('Pocketverse: Purchased', {
     package_id: packageId,
     revenue: revenue,
+    is_trial: isTrial,
     timestamp: new Date().toISOString(),
   });
 };
 
+// Onboarding tracking
+export const trackOnboardingStepViewed = async (stepNumber: number, stepName: string): Promise<void> => {
+  await trackEvent('Pocketverse: Onboarding Step Viewed', {
+    step_number: stepNumber,
+    step_name: stepName,
+    timestamp: new Date().toISOString(),
+  });
+};
 
+export const trackOnboardingStepCompleted = async (
+  stepNumber: number,
+  stepName: string,
+  selections?: string | string[]
+): Promise<void> => {
+  await trackEvent('Pocketverse: Onboarding Step Completed', {
+    step_number: stepNumber,
+    step_name: stepName,
+    selections: selections,
+    timestamp: new Date().toISOString(),
+  });
+};
+
+export const trackOnboardingPaywallViewed = async (paywallNumber: number): Promise<void> => {
+  await trackEvent('Pocketverse: Onboarding Paywall Viewed', {
+    paywall_number: paywallNumber,
+    timestamp: new Date().toISOString(),
+  });
+};
+
+export const trackOnboardingPaywallDismissed = async (paywallNumber: number): Promise<void> => {
+  await trackEvent('Pocketverse: Onboarding Paywall Dismissed', {
+    paywall_number: paywallNumber,
+    timestamp: new Date().toISOString(),
+  });
+};
+
+export const trackOnboardingCompleted = async (): Promise<void> => {
+  await trackEvent('Pocketverse: Onboarding Completed', {
+    timestamp: new Date().toISOString(),
+  });
+};

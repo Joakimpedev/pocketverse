@@ -471,7 +471,7 @@ export default function HomeScreen() {
   };
 
   const handleUnlockReflections = () => {
-    router.push('/paywall');
+    router.push('/onboarding-paywall-4');
   };
 
   const handleReadFullChapter = () => {
@@ -504,7 +504,7 @@ export default function HomeScreen() {
   const handleSeeWhatsIncluded = () => {
     setShowDailyLimitModal(false);
     dailyLimitModalOpacity.setValue(0);
-    router.push('/paywall');
+    router.push('/onboarding-paywall-4');
   };
 
   // Handle welcome screen continue button
@@ -873,7 +873,7 @@ export default function HomeScreen() {
                   )}
                 </TouchableOpacity>
 
-                {/* Why this verse? Button (Center) - Fixed width to prevent snapping */}
+                {/* Deep Reflections Button (Center) - Fixed width to prevent snapping */}
                 <View 
                   style={[
                     styles.whyButtonContainer,
@@ -893,7 +893,7 @@ export default function HomeScreen() {
                     activeOpacity={0.8}
                   >
                     <Text style={styles.whyButtonText}>
-                      Why this verse?
+                      Deep Reflections
                     </Text>
                   </TouchableOpacity>
                 </View>
