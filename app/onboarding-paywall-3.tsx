@@ -112,8 +112,8 @@ export default function OnboardingPaywall3Screen() {
               const yearlyPrice = price;
               const monthlyPrice = yearlyPrice / 12;
 
-              // Format prices using currencyCode (like paywall-1 does)
-              const formatPrice = (amount: number) => new Intl.NumberFormat('en-US', {
+              // Format calculated monthly price using user's locale
+              const formatPrice = (amount: number) => new Intl.NumberFormat(undefined, {
                 style: 'currency',
                 currency: currencyCode,
                 minimumFractionDigits: 2,
@@ -121,7 +121,8 @@ export default function OnboardingPaywall3Screen() {
               }).format(amount);
 
               const monthlyFormatted = formatPrice(monthlyPrice);
-              const yearlyFormatted = formatPrice(yearlyPrice);
+              // Use priceString for yearly (already localized by RevenueCat)
+              const yearlyFormatted = priceString || formatPrice(yearlyPrice);
 
               const formattedPriceInfo = `${monthlyFormatted}/month, billed yearly as ${yearlyFormatted}/year`;
               console.log('Setting price info:', formattedPriceInfo);
