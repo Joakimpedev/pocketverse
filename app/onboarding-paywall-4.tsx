@@ -192,9 +192,18 @@ export default function OnboardingPaywall4Screen() {
               disabled={loadingPrice || !monthlyPkg}
             >
               <Text style={styles.optionTitle}>Monthly</Text>
-              {monthlyPkg?.product?.priceString ? (
+              {monthlyPkg?.product ? (
                 <>
-                  <Text style={styles.optionPrice}>{monthlyPkg.product.priceString}</Text>
+                  <Text style={styles.optionPrice}>
+                    {monthlyPkg.product.currencyCode && monthlyPkg.product.price
+                      ? new Intl.NumberFormat('en-US', {
+                          style: 'currency',
+                          currency: monthlyPkg.product.currencyCode,
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        }).format(monthlyPkg.product.price)
+                      : monthlyPkg.product.priceString}
+                  </Text>
                   <Text style={styles.optionSubtitle}>per month</Text>
                 </>
               ) : (
@@ -222,12 +231,21 @@ export default function OnboardingPaywall4Screen() {
                 <Text style={styles.optionTitle}>Annual</Text>
               {annualPkg?.product ? (
                 <>
-                  <Text style={styles.optionPrice}>{annualPkg.product.priceString}</Text>
+                  <Text style={styles.optionPrice}>
+                    {annualPkg.product.currencyCode && annualPkg.product.price
+                      ? new Intl.NumberFormat('en-US', {
+                          style: 'currency',
+                          currency: annualPkg.product.currencyCode,
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        }).format(annualPkg.product.price)
+                      : annualPkg.product.priceString}
+                  </Text>
                   <Text style={styles.optionSubtitle}>
                     *That's{' '}
                     {annualPkg.product.currencyCode &&
                       annualPkg.product.price &&
-                      new Intl.NumberFormat(undefined, {
+                      new Intl.NumberFormat('en-US', {
                         style: 'currency',
                         currency: annualPkg.product.currencyCode,
                         minimumFractionDigits: 2,
@@ -251,7 +269,20 @@ export default function OnboardingPaywall4Screen() {
               disabled={purchasing || loadingPrice || !(selectedPackage === 'annual' ? annualPkg : monthlyPkg)}
             >
               <Text style={[styles.buttonText, { color: '#F5F0E8' }]}>
-                {purchasing ? 'Processing...' : loadingPrice ? 'Loading...' : 'Try for free'}
+                {purchasing
+                  ? 'Processing...'
+                  : loadingPrice
+                  ? 'Loading...'
+                  : selectedPackage === 'annual'
+                  ? 'Try for free'
+                  : selectedPackage === 'monthly' && monthlyPkg?.product?.currencyCode && monthlyPkg?.product?.price
+                  ? `Try for ${new Intl.NumberFormat('en-US', {
+                      style: 'currency',
+                      currency: monthlyPkg.product.currencyCode,
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    }).format(monthlyPkg.product.price)}`
+                  : 'Try for free'}
               </Text>
             </TouchableOpacity>
           </View>

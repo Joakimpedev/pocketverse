@@ -112,9 +112,8 @@ export default function OnboardingPaywall3Screen() {
               const yearlyPrice = price;
               const monthlyPrice = yearlyPrice / 12;
               
-              // Use device locale for proper currency formatting
-              // This will format according to user's device settings
-              const monthlyFormatted = new Intl.NumberFormat(undefined, {
+              // Use en-US locale for proper currency formatting (matches paywall-1 approach)
+              const monthlyFormatted = new Intl.NumberFormat('en-US', {
                 style: 'currency',
                 currency: currencyCode,
                 minimumFractionDigits: 2,
