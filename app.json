@@ -39,6 +39,14 @@
           "icon": "./assets/icon.png",
           "color": "#f5f1e9"
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static"
+          }
+        }
       ]
     ],
     "scheme": "pocketverse",
