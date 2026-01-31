@@ -72,11 +72,13 @@ function AppContent() {
   useEffect(() => {
     const initAnalytics = async () => {
       try {
-        // Initialize PostHog
+        // Initialize PostHog and wait for it to complete
+        console.log('[RootLayout] Starting PostHog initialization');
         await initializePostHog();
+        console.log('[RootLayout] PostHog initialization complete, tracking app opened');
         await trackPostHogAppOpened();
       } catch (error) {
-        console.error("Error initializing PostHog:", error);
+        console.error("[RootLayout] Error initializing PostHog:", error);
       }
 
       try {
@@ -90,7 +92,7 @@ function AppContent() {
           });
         }
       } catch (error) {
-        console.error("Error initializing TikTok SDK:", error);
+        console.error("[RootLayout] Error initializing TikTok SDK:", error);
       }
     };
 

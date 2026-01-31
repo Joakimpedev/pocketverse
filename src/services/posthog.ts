@@ -5,72 +5,119 @@ import { Platform } from 'react-native';
 // Track if PostHog is initialized
 let isInitialized = false;
 
+// Promise that resolves when PostHog is initialized
+let initializationPromise: Promise<void> | null = null;
+
+// Queue for events that fire before initialization
+interface QueuedEvent {
+  type: 'capture' | 'identify' | 'reset';
+  data: any;
+}
+let eventQueue: QueuedEvent[] = [];
+
 // Initialize PostHog
 export const initializePostHog = async (): Promise<void> => {
-  // If already initialized, return early
-  if (isInitialized) {
-    return;
+  // If already initialized, return the existing promise
+  if (initializationPromise) {
+    return initializationPromise;
   }
 
-  try {
-    if (!posthogConfig.apiKey) {
-      console.warn(
-        'PostHog API key not configured. Please set EXPO_PUBLIC_POSTHOG_API_KEY in your environment variables.'
-      );
-      return;
+  initializationPromise = (async () => {
+    try {
+      if (!posthogConfig.apiKey) {
+        console.warn(
+          'PostHog API key not configured. Please set EXPO_PUBLIC_POSTHOG_API_KEY in your environment variables.'
+        );
+        return;
+      }
+
+      console.log('[PostHog] Initializing PostHog...');
+
+      await PostHog.setup(posthogConfig.apiKey, {
+        host: posthogConfig.host,
+        // Enable automatic screen tracking
+        enableSessionReplay: false, // Disable by default for performance
+        // Enable automatic capture of common events
+        captureApplicationLifecycleEvents: true,
+        captureDeepLinks: true,
+        // Set default properties
+        defaultProperties: {
+          app_name: 'Pocketverse',
+          platform: Platform.OS,
+        },
+      });
+
+      isInitialized = true;
+      console.log('[PostHog] PostHog initialized successfully');
+
+      // Flush queued events
+      if (eventQueue.length > 0) {
+        console.log(`[PostHog] Flushing ${eventQueue.length} queued events`);
+        for (const event of eventQueue) {
+          try {
+            if (event.type === 'capture') {
+              await PostHog.capture(event.data.eventName, event.data.properties);
+            } else if (event.type === 'identify') {
+              await PostHog.identify(event.data.userId, event.data.properties);
+            } else if (event.type === 'reset') {
+              await PostHog.reset();
+            }
+          } catch (error) {
+            console.error('[PostHog] Error flushing queued event:', error);
+          }
+        }
+        eventQueue = []; // Clear the queue
+      }
+    } catch (error: any) {
+      console.error('[PostHog] Error initializing PostHog:', error);
+      // Mark as initialized anyway to prevent infinite queueing
+      isInitialized = true;
     }
+  })();
 
-    await PostHog.setup(posthogConfig.apiKey, {
-      host: posthogConfig.host,
-      // Enable automatic screen tracking
-      enableSessionReplay: false, // Disable by default for performance
-      // Enable automatic capture of common events
-      captureApplicationLifecycleEvents: true,
-      captureDeepLinks: true,
-      // Set default properties
-      defaultProperties: {
-        app_name: 'Pocketverse',
-        platform: Platform.OS,
-      },
-    });
-
-    isInitialized = true;
-    console.log('PostHog initialized successfully');
-  } catch (error: any) {
-    console.error('Error initializing PostHog:', error);
-    // Don't throw - allow app to continue without analytics
-  }
-};
-
-// Check if PostHog is available and initialized
-const checkAvailability = (): boolean => {
-  return isInitialized;
+  return initializationPromise;
 };
 
 // Identify user (call after user signs in)
 export const identifyUser = async (userId: string, properties?: Record<string, any>): Promise<void> => {
-  if (!checkAvailability()) {
+  const finalProperties = {
+    ...properties,
+    app_name: 'Pocketverse',
+  };
+
+  // If not initialized, queue the event
+  if (!isInitialized) {
+    console.log('[PostHog] Queueing identify event (not initialized yet)');
+    eventQueue.push({
+      type: 'identify',
+      data: { userId, properties: finalProperties },
+    });
     return;
   }
+
   try {
-    await PostHog.identify(userId, {
-      ...properties,
-      app_name: 'Pocketverse',
-    });
+    await PostHog.identify(userId, finalProperties);
   } catch (error) {
-    console.error('Error identifying user in PostHog:', error);
+    console.error('[PostHog] Error identifying user:', error);
   }
 };
 
 // Reset user (call when user signs out)
 export const resetUser = async (): Promise<void> => {
-  if (!checkAvailability()) {
+  // If not initialized, queue the event
+  if (!isInitialized) {
+    console.log('[PostHog] Queueing reset event (not initialized yet)');
+    eventQueue.push({
+      type: 'reset',
+      data: {},
+    });
     return;
   }
+
   try {
     await PostHog.reset();
   } catch (error) {
-    console.error('Error resetting PostHog user:', error);
+    console.error('[PostHog] Error resetting PostHog user:', error);
   }
 };
 
@@ -79,21 +126,30 @@ export const trackEvent = async (
   eventName: string,
   properties?: Record<string, any>
 ): Promise<void> => {
-  if (!checkAvailability()) {
+  // Ensure event name has Pocketverse prefix
+  const prefixedEventName = eventName.startsWith('Pocketverse:')
+    ? eventName
+    : `Pocketverse: ${eventName}`;
+
+  const finalProperties = {
+    ...properties,
+    app_name: 'Pocketverse',
+  };
+
+  // If not initialized, queue the event
+  if (!isInitialized) {
+    console.log(`[PostHog] Queueing event "${prefixedEventName}" (not initialized yet)`);
+    eventQueue.push({
+      type: 'capture',
+      data: { eventName: prefixedEventName, properties: finalProperties },
+    });
     return;
   }
-  try {
-    // Ensure event name has Pocketverse prefix
-    const prefixedEventName = eventName.startsWith('Pocketverse:')
-      ? eventName
-      : `Pocketverse: ${eventName}`;
 
-    await PostHog.capture(prefixedEventName, {
-      ...properties,
-      app_name: 'Pocketverse',
-    });
+  try {
+    await PostHog.capture(prefixedEventName, finalProperties);
   } catch (error) {
-    console.error('Error tracking event in PostHog:', error);
+    console.error(`[PostHog] Error tracking event "${prefixedEventName}":`, error);
   }
 };
 
