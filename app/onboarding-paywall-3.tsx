@@ -107,29 +107,27 @@ export default function OnboardingPaywall3Screen() {
             // Set price info for display below button
             // Format: "NOK 25,83/month, billed yearly as 310,00 kr/year"
             // We'll use the actual price string from RevenueCat
-            if (priceString && price && currencyCode) {
+            if (price && currencyCode) {
               // Extract yearly price and calculate monthly equivalent
               const yearlyPrice = price;
               const monthlyPrice = yearlyPrice / 12;
 
-              // Use en-US locale for proper currency formatting (matches paywall-1 approach)
-              const monthlyFormatted = new Intl.NumberFormat('en-US', {
+              // Format prices using currencyCode (like paywall-1 does)
+              const formatPrice = (amount: number) => new Intl.NumberFormat('en-US', {
                 style: 'currency',
                 currency: currencyCode,
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
-              }).format(monthlyPrice);
+              }).format(amount);
 
-              // Extract just the numeric part from priceString to match format
-              // RevenueCat priceString is already properly formatted for locale
-              const formattedPriceInfo = `${monthlyFormatted}/month, billed yearly as ${priceString}/year`;
+              const monthlyFormatted = formatPrice(monthlyPrice);
+              const yearlyFormatted = formatPrice(yearlyPrice);
+
+              const formattedPriceInfo = `${monthlyFormatted}/month, billed yearly as ${yearlyFormatted}/year`;
               console.log('Setting price info:', formattedPriceInfo);
               setPriceInfo(formattedPriceInfo);
-            } else if (priceString) {
-              // Fallback: use priceString directly if currencyCode is not available
-              setPriceInfo(`Billed yearly as ${priceString}/year`);
             } else {
-              console.warn('Missing priceString or price:', { priceString, price });
+              console.warn('Missing price or currencyCode:', { price, currencyCode });
             }
           } else {
             console.warn('Package product not available');

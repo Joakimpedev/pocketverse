@@ -63,11 +63,11 @@ Simple logic based on **Screen 7** (What are you searching for?) answer only. Si
 **Layout:**
 - Progress bar (~10%)
 - Book logo
-- Question: "What should we call you?"
+- Question: "What's your name?"
 - Text input field
 - CTA: "Continue"
 
-**Required**
+**Not Required**
 
 ---
 
@@ -100,7 +100,7 @@ Simple logic based on **Screen 7** (What are you searching for?) answer only. Si
   - 45-54
   - 55+
 
-**Required**
+**Not Required**
 
 ---
 
@@ -117,7 +117,7 @@ Simple logic based on **Screen 7** (What are you searching for?) answer only. Si
   - "I know some verses"
   - "I read it regularly"
 
-**Required**
+**Not Required**
 
 ---
 ### Screen 6: Struggles
@@ -129,6 +129,7 @@ Simple logic based on **Screen 7** (What are you searching for?) answer only. Si
 - Book logo
 - Question: "What are you carrying right now?"
 - Instruction: "Pick a few that resonate"
+- Shown in 3 column and 3 rows
 - Options:
   - Fear & Worry
   - Stress from work or school
@@ -278,11 +279,12 @@ Option: Comfort in hard times
 - Progress bar (~80%)
 - Label: "Choose your color"
 - 4 theme swatches (Classic, Forest, Night, Rose) with primary/darker/lighter preview
+Below is a replica of the homepage:
 - Header: Pocket Verse logo, app name, tagline "The right verse for right now"
 - Read-only input showing the "input text" for the chosen verse (e.g. "I'm going through a really difficult season right now")
 - Verse card in selected theme colors: reference, "Read full chapter" link, verse text
 - Expandable "Deep Reflection" section (same content as in Screen 8 verse data)
-- CTA: "Looks beautiful"
+- Sticky bottom CTA: "Looks beautiful"
 
 **Required:** User must select a theme; verse is from Screen 7. **Navigation:** Next → Screen 10 (Paywall 1).
 
@@ -293,7 +295,6 @@ Option: Comfort in hard times
 **Type:** Paywall
 
 **Layout:**
-- **X button (top right)** - dismissible → goes to `/(tabs)` (main app)
 - Top section in user's theme color with book logo (with glow)
 - Circular divider into cream bottom section
 - Headline: "We offer **3 days** of premium access, just for you"
@@ -308,7 +309,6 @@ Option: Comfort in hard times
 **Type:** Paywall
 
 **Layout:**
-- X button (top right) → `/(tabs)`
 - Theme-colored top section with bell icon (🔔)
 - Circular divider
 - Text: "We'll send you a reminder **1 day** before your trial ends"
@@ -322,7 +322,7 @@ Option: Comfort in hard times
 **Type:** Paywall (final)
 
 **Layout:**
-- X button (top right) → marks onboarding complete, goes to `/(tabs)`
+- X button (top right) → marks onboarding complete, goes to `/(tabs)` (homepage)
 - Headline: "How your free trial works"
 - Subheadline: "Nothing will be charged today"
 - Timeline:

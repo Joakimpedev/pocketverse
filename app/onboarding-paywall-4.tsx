@@ -37,6 +37,16 @@ function findAnnualPackage(packages: PurchasesPackage[]): PurchasesPackage | nul
   );
 }
 
+// Format price using currencyCode (like paywall-1 does)
+function formatPrice(amount: number, currencyCode: string): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: currencyCode,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
+
 /**
  * Feature-focused paywall shown when free users hit premium features in the app
  * (unlimited verses, deep reflections, saved verses, Bible navigation).
@@ -192,10 +202,10 @@ export default function OnboardingPaywall4Screen() {
               disabled={loadingPrice || !monthlyPkg}
             >
               <Text style={styles.optionTitle}>Monthly</Text>
-              {monthlyPkg?.product ? (
+              {monthlyPkg?.product?.currencyCode && monthlyPkg?.product?.price ? (
                 <>
                   <Text style={styles.optionPrice}>
-                    {monthlyPkg.product.priceString}
+                    {formatPrice(monthlyPkg.product.price, monthlyPkg.product.currencyCode)}
                   </Text>
                   <Text style={styles.optionSubtitle}>per month</Text>
                 </>
@@ -222,22 +232,13 @@ export default function OnboardingPaywall4Screen() {
               </View>
               <View style={styles.optionCardContent}>
                 <Text style={styles.optionTitle}>Annual</Text>
-              {annualPkg?.product ? (
+              {annualPkg?.product?.currencyCode && annualPkg?.product?.price ? (
                 <>
                   <Text style={styles.optionPrice}>
-                    {annualPkg.product.priceString}
+                    {formatPrice(annualPkg.product.price, annualPkg.product.currencyCode)}
                   </Text>
                   <Text style={styles.optionSubtitle}>
-                    *That's{' '}
-                    {annualPkg.product.currencyCode && annualPkg.product.price
-                      ? new Intl.NumberFormat('en-US', {
-                          style: 'currency',
-                          currency: annualPkg.product.currencyCode,
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        }).format(annualPkg.product.price / 12)
-                      : `${(annualPkg.product.price / 12).toFixed(2)}`}
-                    /mo
+                    *That's {formatPrice(annualPkg.product.price / 12, annualPkg.product.currencyCode)}/mo
                   </Text>
                 </>
               ) : (
@@ -261,8 +262,8 @@ export default function OnboardingPaywall4Screen() {
                   ? 'Loading...'
                   : selectedPackage === 'annual'
                   ? 'Try for free'
-                  : selectedPackage === 'monthly' && monthlyPkg?.product?.priceString
-                  ? `Try for ${monthlyPkg.product.priceString}`
+                  : selectedPackage === 'monthly' && monthlyPkg?.product?.currencyCode && monthlyPkg?.product?.price
+                  ? `Try for ${formatPrice(monthlyPkg.product.price, monthlyPkg.product.currencyCode)}`
                   : 'Try for free'}
               </Text>
             </TouchableOpacity>

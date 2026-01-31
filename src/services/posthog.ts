@@ -2,22 +2,9 @@ import PostHog from 'posthog-react-native';
 import { posthogConfig } from '../config/posthog.config';
 import { Platform } from 'react-native';
 
-// Track if PostHog is initialized
+// PostHog instance (v4 uses instance-based API)
+let posthogInstance: PostHog | null = null;
 let isInitialized = false;
-
-// Helper to flush events - ensures events are sent immediately
-export const flushEvents = async (): Promise<void> => {
-  if (!isInitialized) {
-    console.log('[PostHog] Cannot flush - not initialized yet');
-    return;
-  }
-  try {
-    await PostHog.flush();
-    console.log('[PostHog] Events flushed');
-  } catch (error) {
-    console.error('[PostHog] Error flushing events:', error);
-  }
-};
 
 // Promise that resolves when PostHog is initialized
 let initializationPromise: Promise<void> | null = null;
@@ -29,7 +16,21 @@ interface QueuedEvent {
 }
 let eventQueue: QueuedEvent[] = [];
 
-// Initialize PostHog
+// Helper to flush events - ensures events are sent immediately
+export const flushEvents = async (): Promise<void> => {
+  if (!isInitialized || !posthogInstance) {
+    console.log('[PostHog] Cannot flush - not initialized yet');
+    return;
+  }
+  try {
+    await posthogInstance.flush();
+    console.log('[PostHog] Events flushed');
+  } catch (error) {
+    console.error('[PostHog] Error flushing events:', error);
+  }
+};
+
+// Initialize PostHog (v4 instance-based API)
 export const initializePostHog = async (): Promise<void> => {
   // If already initialized, return the existing promise
   if (initializationPromise) {
@@ -47,19 +48,14 @@ export const initializePostHog = async (): Promise<void> => {
 
       console.log('[PostHog] Initializing PostHog...');
 
-      await PostHog.setup(posthogConfig.apiKey, {
+      // v4 uses instance-based API: new PostHog(apiKey, options)
+      posthogInstance = new PostHog(posthogConfig.apiKey, {
         host: posthogConfig.host,
-        // Enable automatic screen tracking
-        enableSessionReplay: false, // Disable by default for performance
-        // Enable automatic capture of common events
-        captureApplicationLifecycleEvents: true,
-        captureDeepLinks: true,
-        // Set default properties
-        defaultProperties: {
-          app_name: 'Pocketverse',
-          platform: Platform.OS,
-        },
+        enableSessionReplay: false,
       });
+
+      // Wait for PostHog to be ready
+      await posthogInstance.ready();
 
       isInitialized = true;
       console.log('[PostHog] PostHog initialized successfully');
@@ -70,11 +66,11 @@ export const initializePostHog = async (): Promise<void> => {
         for (const event of eventQueue) {
           try {
             if (event.type === 'capture') {
-              await PostHog.capture(event.data.eventName, event.data.properties);
+              posthogInstance.capture(event.data.eventName, event.data.properties);
             } else if (event.type === 'identify') {
-              await PostHog.identify(event.data.userId, event.data.properties);
+              posthogInstance.identify(event.data.userId, event.data.properties);
             } else if (event.type === 'reset') {
-              await PostHog.reset();
+              posthogInstance.reset();
             }
           } catch (error) {
             console.error('[PostHog] Error processing queued event:', error);
@@ -103,7 +99,7 @@ export const identifyUser = async (userId: string, properties?: Record<string, a
   };
 
   // If not initialized, queue the event
-  if (!isInitialized) {
+  if (!isInitialized || !posthogInstance) {
     console.log('[PostHog] Queueing identify event (not initialized yet)');
     eventQueue.push({
       type: 'identify',
@@ -113,7 +109,7 @@ export const identifyUser = async (userId: string, properties?: Record<string, a
   }
 
   try {
-    await PostHog.identify(userId, finalProperties);
+    posthogInstance.identify(userId, finalProperties);
   } catch (error) {
     console.error('[PostHog] Error identifying user:', error);
   }
@@ -122,7 +118,7 @@ export const identifyUser = async (userId: string, properties?: Record<string, a
 // Reset user (call when user signs out)
 export const resetUser = async (): Promise<void> => {
   // If not initialized, queue the event
-  if (!isInitialized) {
+  if (!isInitialized || !posthogInstance) {
     console.log('[PostHog] Queueing reset event (not initialized yet)');
     eventQueue.push({
       type: 'reset',
@@ -132,7 +128,7 @@ export const resetUser = async (): Promise<void> => {
   }
 
   try {
-    await PostHog.reset();
+    posthogInstance.reset();
   } catch (error) {
     console.error('[PostHog] Error resetting PostHog user:', error);
   }
@@ -152,10 +148,11 @@ export const trackEvent = async (
   const finalProperties = {
     ...properties,
     app_name: 'Pocketverse',
+    platform: Platform.OS,
   };
 
   // If not initialized, queue the event
-  if (!isInitialized) {
+  if (!isInitialized || !posthogInstance) {
     console.log(`[PostHog] Queueing event "${prefixedEventName}" (not initialized yet)`);
     eventQueue.push({
       type: 'capture',
@@ -166,7 +163,7 @@ export const trackEvent = async (
 
   try {
     console.log(`[PostHog] Capturing event "${prefixedEventName}"`);
-    await PostHog.capture(prefixedEventName, finalProperties);
+    posthogInstance.capture(prefixedEventName, finalProperties);
     // Flush immediately for important events to ensure they're sent
     if (shouldFlush) {
       await flushEvents();
