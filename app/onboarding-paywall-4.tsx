@@ -37,9 +37,9 @@ function findAnnualPackage(packages: PurchasesPackage[]): PurchasesPackage | nul
   );
 }
 
-// Format price using currencyCode (like paywall-1 does)
+// Format price for calculated values (like monthly from yearly)
 function formatPrice(amount: number, currencyCode: string): string {
-  return new Intl.NumberFormat('en-US', {
+  return new Intl.NumberFormat(undefined, {
     style: 'currency',
     currency: currencyCode,
     minimumFractionDigits: 2,
@@ -202,10 +202,10 @@ export default function OnboardingPaywall4Screen() {
               disabled={loadingPrice || !monthlyPkg}
             >
               <Text style={styles.optionTitle}>Monthly</Text>
-              {monthlyPkg?.product?.currencyCode && monthlyPkg?.product?.price ? (
+              {monthlyPkg?.product?.priceString ? (
                 <>
                   <Text style={styles.optionPrice}>
-                    {formatPrice(monthlyPkg.product.price, monthlyPkg.product.currencyCode)}
+                    {monthlyPkg.product.priceString}
                   </Text>
                   <Text style={styles.optionSubtitle}>per month</Text>
                 </>
@@ -232,10 +232,10 @@ export default function OnboardingPaywall4Screen() {
               </View>
               <View style={styles.optionCardContent}>
                 <Text style={styles.optionTitle}>Annual</Text>
-              {annualPkg?.product?.currencyCode && annualPkg?.product?.price ? (
+              {annualPkg?.product?.priceString ? (
                 <>
                   <Text style={styles.optionPrice}>
-                    {formatPrice(annualPkg.product.price, annualPkg.product.currencyCode)}
+                    {annualPkg.product.priceString}
                   </Text>
                   <Text style={styles.optionSubtitle}>
                     *That's {formatPrice(annualPkg.product.price / 12, annualPkg.product.currencyCode)}/mo
@@ -262,8 +262,8 @@ export default function OnboardingPaywall4Screen() {
                   ? 'Loading...'
                   : selectedPackage === 'annual'
                   ? 'Try for free'
-                  : selectedPackage === 'monthly' && monthlyPkg?.product?.currencyCode && monthlyPkg?.product?.price
-                  ? `Try for ${formatPrice(monthlyPkg.product.price, monthlyPkg.product.currencyCode)}`
+                  : selectedPackage === 'monthly' && monthlyPkg?.product?.priceString
+                  ? `Try for ${monthlyPkg.product.priceString}`
                   : 'Try for free'}
               </Text>
             </TouchableOpacity>

@@ -31,7 +31,6 @@ yarn-error.*
 
 # local env files (contains API keys - NEVER commit these!)
 .env*.local
-.env
 
 # API keys and config files with secrets
 src/config/openai.config.ts
@@ -49,3 +48,4 @@ src/config/openai.config.ts
 
 yarn.lock
 Podfile.lock
+config.bat

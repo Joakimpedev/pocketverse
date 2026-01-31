@@ -70,7 +70,7 @@ export default function OnboardingPaywall1Screen() {
             // Format as "Try now for [currency]0.00"
             // For free trial, the price is always 0.00
             // RevenueCat will show 0.00 if the subscription has a free trial configured
-            const formattedPrice = new Intl.NumberFormat('en-US', {
+            const formattedPrice = new Intl.NumberFormat(undefined, {
               style: 'currency',
               currency: currencyCode,
               minimumFractionDigits: 2,
