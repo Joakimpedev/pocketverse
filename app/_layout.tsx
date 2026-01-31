@@ -23,6 +23,7 @@ import {
 import {
   initializePostHog,
   trackAppOpened as trackPostHogAppOpened,
+  flushEvents as flushPostHogEvents,
 } from "../src/services/posthog";
 import { initTikTok, trackEvent } from "../src/services/tiktok";
 import { useEffect } from "react";
@@ -133,6 +134,8 @@ function AppContent() {
           }
 
         } else if (nextAppState === "background") {
+          // Flush any pending PostHog events before app goes to background
+          flushPostHogEvents().catch(() => {});
         }
       },
     );

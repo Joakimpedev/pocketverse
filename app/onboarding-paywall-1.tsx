@@ -66,7 +66,7 @@ export default function OnboardingPaywall1Screen() {
 
           if (packageToShow?.product) {
             const currencyCode = packageToShow.product.currencyCode;
-            
+
             // Format as "Try now for [currency]0.00"
             // For free trial, the price is always 0.00
             // RevenueCat will show 0.00 if the subscription has a free trial configured

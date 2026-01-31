@@ -99,7 +99,7 @@ export default function OnboardingPaywall3Screen() {
             const currencyCode = packageToShow.product.currencyCode;
             const price = packageToShow.product.price;
             const priceString = packageToShow.product.priceString;
-            
+
             console.log('Price data:', { currencyCode, price, priceString });
 
             setButtonText(`Try for free`);
@@ -107,11 +107,11 @@ export default function OnboardingPaywall3Screen() {
             // Set price info for display below button
             // Format: "NOK 25,83/month, billed yearly as 310,00 kr/year"
             // We'll use the actual price string from RevenueCat
-            if (priceString && price) {
+            if (priceString && price && currencyCode) {
               // Extract yearly price and calculate monthly equivalent
               const yearlyPrice = price;
               const monthlyPrice = yearlyPrice / 12;
-              
+
               // Use en-US locale for proper currency formatting (matches paywall-1 approach)
               const monthlyFormatted = new Intl.NumberFormat('en-US', {
                 style: 'currency',
@@ -119,12 +119,15 @@ export default function OnboardingPaywall3Screen() {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
               }).format(monthlyPrice);
-              
+
               // Extract just the numeric part from priceString to match format
               // RevenueCat priceString is already properly formatted for locale
               const formattedPriceInfo = `${monthlyFormatted}/month, billed yearly as ${priceString}/year`;
               console.log('Setting price info:', formattedPriceInfo);
               setPriceInfo(formattedPriceInfo);
+            } else if (priceString) {
+              // Fallback: use priceString directly if currencyCode is not available
+              setPriceInfo(`Billed yearly as ${priceString}/year`);
             } else {
               console.warn('Missing priceString or price:', { priceString, price });
             }

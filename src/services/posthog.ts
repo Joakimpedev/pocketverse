@@ -5,6 +5,20 @@ import { Platform } from 'react-native';
 // Track if PostHog is initialized
 let isInitialized = false;
 
+// Helper to flush events - ensures events are sent immediately
+export const flushEvents = async (): Promise<void> => {
+  if (!isInitialized) {
+    console.log('[PostHog] Cannot flush - not initialized yet');
+    return;
+  }
+  try {
+    await PostHog.flush();
+    console.log('[PostHog] Events flushed');
+  } catch (error) {
+    console.error('[PostHog] Error flushing events:', error);
+  }
+};
+
 // Promise that resolves when PostHog is initialized
 let initializationPromise: Promise<void> | null = null;
 
@@ -52,7 +66,7 @@ export const initializePostHog = async (): Promise<void> => {
 
       // Flush queued events
       if (eventQueue.length > 0) {
-        console.log(`[PostHog] Flushing ${eventQueue.length} queued events`);
+        console.log(`[PostHog] Processing ${eventQueue.length} queued events`);
         for (const event of eventQueue) {
           try {
             if (event.type === 'capture') {
@@ -63,10 +77,13 @@ export const initializePostHog = async (): Promise<void> => {
               await PostHog.reset();
             }
           } catch (error) {
-            console.error('[PostHog] Error flushing queued event:', error);
+            console.error('[PostHog] Error processing queued event:', error);
           }
         }
         eventQueue = []; // Clear the queue
+        // Flush all queued events to PostHog server
+        await flushEvents();
+        console.log('[PostHog] Queued events flushed to server');
       }
     } catch (error: any) {
       console.error('[PostHog] Error initializing PostHog:', error);
@@ -124,7 +141,8 @@ export const resetUser = async (): Promise<void> => {
 // Track event with Pocketverse prefix
 export const trackEvent = async (
   eventName: string,
-  properties?: Record<string, any>
+  properties?: Record<string, any>,
+  shouldFlush: boolean = false
 ): Promise<void> => {
   // Ensure event name has Pocketverse prefix
   const prefixedEventName = eventName.startsWith('Pocketverse:')
@@ -147,7 +165,12 @@ export const trackEvent = async (
   }
 
   try {
+    console.log(`[PostHog] Capturing event "${prefixedEventName}"`);
     await PostHog.capture(prefixedEventName, finalProperties);
+    // Flush immediately for important events to ensure they're sent
+    if (shouldFlush) {
+      await flushEvents();
+    }
   } catch (error) {
     console.error(`[PostHog] Error tracking event "${prefixedEventName}":`, error);
   }
@@ -157,20 +180,20 @@ export const trackEvent = async (
 export const trackAppOpened = async (): Promise<void> => {
   await trackEvent('Pocketverse: App Opened', {
     timestamp: new Date().toISOString(),
-  });
+  }, true); // Flush immediately
 };
 
 export const trackSignedIn = async (method: 'apple' | 'email'): Promise<void> => {
   await trackEvent('Pocketverse: Signed In', {
     sign_in_method: method,
     timestamp: new Date().toISOString(),
-  });
+  }, true); // Flush immediately - critical conversion event
 };
 
 export const trackSeenPaywall = async (): Promise<void> => {
   await trackEvent('Pocketverse: Seen Paywall', {
     timestamp: new Date().toISOString(),
-  });
+  }, true); // Flush immediately
 };
 
 export const trackPurchased = async (packageId?: string, revenue?: number, isTrial?: boolean): Promise<void> => {
@@ -179,7 +202,7 @@ export const trackPurchased = async (packageId?: string, revenue?: number, isTri
     revenue: revenue,
     is_trial: isTrial,
     timestamp: new Date().toISOString(),
-  });
+  }, true); // Flush immediately - critical conversion event
 };
 
 // Onboarding tracking
@@ -188,7 +211,7 @@ export const trackOnboardingStepViewed = async (stepNumber: number, stepName: st
     step_number: stepNumber,
     step_name: stepName,
     timestamp: new Date().toISOString(),
-  });
+  }); // Don't flush - not critical, will batch
 };
 
 export const trackOnboardingStepCompleted = async (
@@ -201,25 +224,25 @@ export const trackOnboardingStepCompleted = async (
     step_name: stepName,
     selections: selections,
     timestamp: new Date().toISOString(),
-  });
+  }); // Don't flush - not critical, will batch
 };
 
 export const trackOnboardingPaywallViewed = async (paywallNumber: number): Promise<void> => {
   await trackEvent('Pocketverse: Onboarding Paywall Viewed', {
     paywall_number: paywallNumber,
     timestamp: new Date().toISOString(),
-  });
+  }, true); // Flush immediately - important funnel event
 };
 
 export const trackOnboardingPaywallDismissed = async (paywallNumber: number): Promise<void> => {
   await trackEvent('Pocketverse: Onboarding Paywall Dismissed', {
     paywall_number: paywallNumber,
     timestamp: new Date().toISOString(),
-  });
+  }, true); // Flush immediately - important funnel event
 };
 
 export const trackOnboardingCompleted = async (): Promise<void> => {
   await trackEvent('Pocketverse: Onboarding Completed', {
     timestamp: new Date().toISOString(),
-  });
+  }, true); // Flush immediately - critical conversion event
 };
