@@ -39,8 +39,7 @@
           "icon": "./assets/icon.png",
           "color": "#f5f1e9"
         }
-      ],
-      "posthog-react-native"
+      ]
     ],
     "scheme": "pocketverse",
     "extra": {
